@@ -1,0 +1,257 @@
+/* =========================
+   GLOBAL
+========================= */
+
+body {
+
+  margin: 0;
+  font-family: Arial, Helvetica, sans-serif;
+  background: #ffffff;
+
+}
+
+a {
+  text-decoration: none;
+}
+
+
+/* =========================
+   LANDING PAGE
+========================= */
+
+.landing {
+
+  background: #ffffff;
+  min-height: 100vh;
+
+}
+
+
+/* =========================
+   DASHBOARD LAYOUT
+========================= */
+
+.dashboard {
+
+  display: flex;
+  height: 100vh;
+
+  background: linear-gradient(
+    to right,
+    #0f2027,
+    #203a43,
+    #2c5364
+  );
+
+}
+
+
+.dashboard-container {
+
+  display: flex;
+  width: 100%;
+}
+
+
+/* =========================
+   SIDEBAR
+========================= */
+
+.sidebar {
+
+  width: 250px;
+  background: #111;
+  color: white;
+  padding: 20px;
+
+}
+
+.sidebar h2 {
+
+  margin-bottom: 20px;
+
+}
+
+.sidebar a {
+
+  display: block;
+  color: white;
+  padding: 12px;
+  margin-bottom: 10px;
+  border-radius: 5px;
+
+}
+
+.sidebar a:hover {
+
+  background: teal;
+
+}
+
+
+/* =========================
+   CONTENT
+========================= */
+
+.content,
+.dashboard-content {
+
+  flex: 1;
+  background: #f4f6f9;
+  padding: 20px;
+  overflow-y: auto;
+
+}
+
+
+/* =========================
+   CARDS
+========================= */
+
+.card {
+
+  background: white;
+  padding: 20px;
+  margin-bottom: 20px;
+  border-radius: 10px;
+
+  box-shadow: 0 2px 8px rgba(0,0,0,0.2);
+
+}
+
+.card h3 {
+
+  margin: 0 0 10px;
+
+}
+
+
+/* =========================
+   BUTTON
+========================= */
+
+button {
+
+  background: teal;
+  color: white;
+  border: none;
+
+  padding: 10px 15px;
+  border-radius: 5px;
+
+  cursor: pointer;
+
+  font-size: 14px;
+
+}
+
+button:hover {
+
+  background: darkcyan;
+
+}
+
+
+/* =========================
+   INPUT
+========================= */
+
+input,
+textarea {
+
+  width: 100%;
+  padding: 10px;
+  margin-bottom: 15px;
+
+  border-radius: 5px;
+  border: 1px solid #ccc;
+
+  font-size: 14px;
+
+}
+
+
+/* =========================
+   AUTH PAGE
+========================= */
+
+.auth-container {
+
+  display: flex;
+  justify-content: center;
+  align-items: center;
+
+  height: 100vh;
+
+  background: linear-gradient(
+    to right,
+    #0f2027,
+    #203a43,
+    #2c5364
+  );
+
+}
+
+.auth-box {
+
+  background: white;
+  padding: 30px;
+
+  width: 350px;
+
+  border-radius: 10px;
+
+  box-shadow: 0 5px 15px rgba(0,0,0,0.3);
+
+}
+
+
+/* =========================
+   STATS SECTION
+========================= */
+
+.stats {
+
+  display: flex;
+  gap: 20px;
+
+}
+
+.stats .card {
+
+  flex: 1;
+  text-align: center;
+
+}
+
+
+/* =========================
+   SEARCH INPUT
+========================= */
+
+input[type="text"] {
+
+  padding: 12px;
+  border-radius: 6px;
+}
+
+
+/* =========================
+   RESPONSIVE
+========================= */
+
+@media screen and (max-width: 768px) {
+
+  .sidebar {
+
+    width: 200px;
+
+  }
+
+  .stats {
+
+    flex-direction: column;
+
+  }
+
+}

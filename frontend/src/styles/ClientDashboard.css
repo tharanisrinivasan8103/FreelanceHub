@@ -1,0 +1,47 @@
+/* Background handled by layout, keep minimal styling */
+
+.dashboard-wrapper {
+  background: #f5f7fa;
+  min-height: 100vh;
+}
+
+/* Optional hover effect for cards (Tailwind handles most styling) */
+.card,
+.project-card {
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+}
+
+.card:hover,
+.project-card:hover {
+  transform: translateY(-4px);
+}
+
+/* Status badge colors (if still used somewhere) */
+.status {
+  padding: 6px 12px;
+  border-radius: 20px;
+  font-size: 12px;
+  text-transform: capitalize;
+  font-weight: 500;
+}
+
+.status.open {
+  background: #e0f7fa;
+  color: #00796b;
+}
+
+.status.pending {
+  background: #fff3e0;
+  color: #ef6c00;
+}
+
+.status.completed {
+  background: #e8f5e9;
+  color: #2e7d32;
+}
+
+/* Empty state */
+.no-projects {
+  color: gray;
+  margin-top: 10px;
+}

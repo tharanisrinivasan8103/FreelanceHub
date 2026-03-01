@@ -1,0 +1,166 @@
+/* ================= PAGE BACKGROUND ================= */
+
+.register-page {
+  min-height: 100vh;
+  background: linear-gradient(to right, #0f2027, #134e4a);
+  display: flex;
+  justify-content: center;
+  align-items: center;
+}
+
+/* ================= CENTER CARD ================= */
+
+.register-wrapper {
+  width: 100%;
+  max-width: 340px;
+  background: white;
+  padding: 20px;
+  border-radius: 12px;
+  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
+  color: #1f2937;
+}
+
+/* ================= HEADER ================= */
+
+.register-header {
+  text-align: center;
+  margin-bottom: 14px;
+}
+
+.logo-icon {
+  font-size: 18px;
+  margin-bottom: 6px;
+}
+
+.register-header h2 {
+  font-size: 18px;
+  margin-bottom: 3px;
+}
+
+.register-header p {
+  font-size: 12px;
+  color: #6b7280;
+}
+
+/* ================= TOGGLE BUTTON ================= */
+
+.toggle-container {
+  display: flex;
+  width: 100%;
+  margin-bottom: 14px;
+  background: #e5e7eb;
+  border-radius: 8px;
+  padding: 3px;
+}
+
+/* Default button style */
+.toggle-container button {
+  flex: 1;
+  padding: 8px;
+  font-size: 13px;
+  font-weight: 600;
+  border-radius: 6px;
+  border: none;
+  cursor: pointer;
+  background: transparent;
+  color: #374151;
+  transition: 0.3s;
+}
+
+/* ACTIVE BUTTON (Login or Register) */
+.toggle-container .active {
+  background: linear-gradient(to right, #1f7a6c, #1e6b5f);
+  color: white;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
+}
+
+/* Hover effect */
+.toggle-container button:hover {
+  background: #d1d5db;
+}
+
+/* ================= FORM ================= */
+
+.register-form {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+}
+
+.register-form label {
+  font-size: 12px;
+  margin: 8px 0 4px;
+}
+
+.register-form input {
+  width: 100%;
+  padding: 9px;
+  font-size: 13px;
+  border-radius: 6px;
+  border: 1px solid #d1d5db;
+  outline: none;
+}
+
+.register-form input:focus {
+  border-color: #10b981;
+}
+
+/* ================= ROLE SELECTION ================= */
+
+.role-selection {
+  display: flex;
+  width: 100%;
+  gap: 8px;
+  margin-top: 8px;
+}
+
+.role-box {
+  flex: 1;
+  text-align: center;
+  padding: 10px 6px;
+  border-radius: 10px;
+  border: 1px solid #d1d5db;
+  cursor: pointer;
+  transition: 0.3s;
+  background: #f9fafb;
+}
+
+.role-box p {
+  margin-top: 4px;
+  font-size: 12px;
+}
+
+.role-box.active {
+  border: 2px solid #10b981;
+  background: #ecfdf5;
+}
+
+/* ================= MAIN BUTTON ================= */
+
+.create-btn {
+  width: 100%;
+  margin-top: 14px;
+  padding: 10px;
+  font-size: 14px;
+  font-weight: 600;
+  border-radius: 8px;
+  border: none;
+  background: linear-gradient(to right, #1f7a6c, #1e6b5f);
+  color: white;
+  cursor: pointer;
+  transition: 0.3s;
+}
+
+.create-btn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+
+/* ================= SUCCESS MSG ================= */
+
+.success-msg {
+  text-align: center;
+  font-size: 12px;
+  margin-bottom: 8px;
+  color: #10b981;
+}
