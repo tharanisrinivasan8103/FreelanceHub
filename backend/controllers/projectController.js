@@ -1,31 +1,27 @@
 const db = require("../config/db");
 
-
 // ===============================
-// CREATE PROJECT (Logged-in Client)
+// CREATE PROJECT
 // ===============================
 exports.createProject = (req, res) => {
+  const { title, description, budget, category, skills, deadline } = req.body;
+  const client_id = req.user.id;
 
-  const { title, description, budget } = req.body;
-
-  const client_id = req.user.id; // take from JWT
-
-  if (!title || !description || !budget) {
+  if (!title || !description || !budget || !category) {
     return res.status(400).json({
-      message: "All fields are required"
+      message: "Title, Description, Budget and Category are required"
     });
   }
 
   db.query(
-    "INSERT INTO projects (title, description, budget, client_id) VALUES (?, ?, ?, ?)",
-    [title, description, budget, client_id],
+    `INSERT INTO projects (title, description, budget, category, skills, deadline, client_id)
+     VALUES (?, ?, ?, ?, ?, ?, ?)`,
+    [title, description, budget, category, skills || null, deadline || null, client_id],
     (err, result) => {
-
       if (err) {
-        console.error(err);
+        console.error("Create Project Error:", err);
         return res.status(500).json({ message: "Server error" });
       }
-
       res.status(201).json({
         message: "Project Created Successfully",
         projectId: result.insertId
@@ -34,105 +30,114 @@ exports.createProject = (req, res) => {
   );
 };
 
-
-
 // ===============================
-// GET ALL PROJECTS (Admin use)
+// GET CLIENT PROJECTS
 // ===============================
-exports.getAllProjects = (req, res) => {
+exports.getClientProjects = (req, res) => {
+  const clientId = req.user.id;
 
   db.query(
-    `SELECT projects.*, users.name AS client_name
-     FROM projects
-     JOIN users ON projects.client_id = users.id`,
-    (err, result) => {
-
+    "SELECT * FROM projects WHERE client_id = ? ORDER BY id DESC",
+    [clientId],
+    (err, results) => {
       if (err) {
+        console.error("Client Projects Error:", err);
         return res.status(500).json({ message: "Server error" });
       }
-
-      res.status(200).json(result);
+      res.status(200).json(results);
     }
   );
 };
 
-
-
 // ===============================
-// GET PROJECTS FOR LOGGED-IN CLIENT
+// GET ALL PROJECTS
 // ===============================
-exports.getClientProjects = (req, res) => {
-
-  const clientId = req.user.id;   // coming from JWT
-
+exports.getAllProjects = (req, res) => {
+  // ✅ proposal count JOIN பண்றோம்
   const query = `
-    SELECT *
-    FROM projects
-    WHERE client_id = ?
-    ORDER BY id DESC
+    SELECT 
+      p.*,
+      COUNT(pr.id) AS proposalsCount
+    FROM projects p
+    LEFT JOIN proposals pr ON p.id = pr.project_id
+    GROUP BY p.id
+    ORDER BY p.id DESC
   `;
 
-  db.query(query, [clientId], (err, results) => {
-
+  db.query(query, (err, results) => {
     if (err) {
-      console.error("Database error:", err);
+      console.error("Error fetching projects:", err);
       return res.status(500).json({ message: "Server error" });
     }
-
     res.status(200).json(results);
   });
 };
 
-
-
 // ===============================
-// GET SINGLE PROJECT
+// FREELANCER DASHBOARD
+// ✅ FIX: pr.bid also fetch பண்றோம்
 // ===============================
-exports.getSingleProject = (req, res) => {
+exports.getFreelancerDashboard = (req, res) => {
+  const freelancerId = req.user.id;
 
-  const project_id = req.params.id;
+  if (!freelancerId) {
+    return res.status(401).json({ message: "Unauthorized" });
+  }
 
-  db.query(
-    "SELECT * FROM projects WHERE id = ?",
-    [project_id],
-    (err, result) => {
+  const proposalCountQuery = `
+    SELECT COUNT(*) AS totalProposals
+    FROM proposals
+    WHERE freelancer_id = ?
+  `;
 
-      if (err) {
-        return res.status(500).json({ message: "Server error" });
-      }
-
-      if (result.length === 0) {
-        return res.status(404).json({
-          message: "Project not found"
-        });
-      }
-
-      res.status(200).json(result[0]);
+  db.query(proposalCountQuery, [freelancerId], (err, proposalResult) => {
+    if (err) {
+      console.error("Proposal Count Error:", err);
+      return res.status(500).json({ message: "Server error" });
     }
-  );
-};
 
+    const totalProposals = proposalResult[0]?.totalProposals || 0;
 
+    // ✅ pr.bid, pr.status also include பண்றோம்
+    const projectQuery = `
+      SELECT 
+        p.id, p.title, p.description, p.budget, p.category, p.client_id,
+        pr.bid        AS my_bid,
+        pr.status     AS proposal_status
+      FROM projects p
+      INNER JOIN proposals pr ON p.id = pr.project_id
+      WHERE pr.freelancer_id = ?
+      ORDER BY p.id DESC
+    `;
 
-// ===============================
-// DELETE PROJECT
-// ===============================
-exports.deleteProject = (req, res) => {
-
-  const project_id = req.params.id;
-
-  db.query(
-    "DELETE FROM projects WHERE id = ?",
-    [project_id],
-    (err, result) => {
-
+    db.query(projectQuery, [freelancerId], (err, projectResult) => {
       if (err) {
+        console.error("Project Fetch Error:", err);
         return res.status(500).json({ message: "Server error" });
       }
+
+      const projects = projectResult || [];
 
       res.status(200).json({
-        message: "Project deleted successfully"
+        activeProjects: projects.length,
+        pendingProposals: totalProposals,
+        projects: projects
       });
-    }
-  );
+    });
+  });
+};
+
+// ===============================
+// DELETE PROJECT (Admin)
+// ===============================
+exports.deleteProject = (req, res) => {
+  const project_id = req.params.id;
+  // Delete proposals first, then project
+  db.query("DELETE FROM proposals WHERE project_id = ?", [project_id], (err) => {
+    if (err) return res.status(500).json({ message: "Server Error" });
+    db.query("DELETE FROM projects WHERE id = ?", [project_id], (err2) => {
+      if (err2) return res.status(500).json({ message: "Server Error" });
+      res.status(200).json({ message: "Project deleted successfully" });
+    });
+  });
 };

@@ -1,79 +1,101 @@
 import React, { useEffect, useState } from "react";
-import API from "../../api/api";
 import { useNavigate } from "react-router-dom";
+import API from "../../api/api";
 
 const MyProjects = () => {
-  const navigate = useNavigate();
-
   const [projects, setProjects] = useState([]);
   const [loading, setLoading] = useState(true);
-
-  // =====================================
-  // FETCH PROJECTS
-  // =====================================
-  const fetchProjects = async () => {
-    try {
-      const res = await API.get("/projects/client/my-projects");
-      setProjects(res.data);
-    } catch (err) {
-      console.log(err);
-    } finally {
-      setLoading(false);
-    }
-  };
+  const navigate = useNavigate();
 
   useEffect(() => {
-    fetchProjects();
+    const fetch = async () => {
+      try {
+        const res = await API.get("/projects/client");
+        setProjects(res.data || []);
+      } catch (err) {
+        console.error(err);
+      } finally {
+        setLoading(false);
+      }
+    };
+    fetch();
   }, []);
 
+  const formatDate = (d) => {
+    if (!d) return "";
+    return new Date(d).toLocaleDateString("en-IN", { day: "2-digit", month: "short", year: "numeric" });
+  };
+
+  if (loading) return <div className="text-center py-10 text-gray-500">Loading...</div>;
+
   return (
-    <div className="p-8">
-      {/* HEADER */}
-      <h2 className="text-2xl font-bold mb-6">
-        My Projects
-      </h2>
-
-      {/* LOADING */}
-      {loading && <p>Loading Projects...</p>}
-
-      {/* EMPTY */}
-      {!loading && projects.length === 0 && (
-        <p>No Projects Found</p>
-      )}
-
-      {/* PROJECT GRID */}
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {projects.map((project) => (
-          <div
-            key={project.id}
-            className="bg-white p-5 rounded-xl shadow hover:shadow-lg transition"
+    <div className="bg-gray-50 min-h-screen p-8">
+      <div className="max-w-5xl mx-auto">
+        <div className="flex justify-between items-center mb-6">
+          <h1 className="text-2xl font-bold text-gray-800">My Projects</h1>
+          <button
+            onClick={() => navigate("/client/post-project")}
+            className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
           >
-            {/* TITLE */}
-            <h3 className="text-lg font-semibold mb-2">
-              {project.title}
-            </h3>
+            + Post New Project
+          </button>
+        </div>
 
-            {/* DESCRIPTION */}
-            <p className="text-gray-600 mb-3">
-              {project.description}
-            </p>
-
-            {/* BUDGET */}
-            <p className="text-blue-600 font-bold mb-4">
-              Budget : ₹{project.budget}
-            </p>
-
-            {/* BUTTON */}
-            <button
-              onClick={() =>
-                navigate(`/client/projects/${project.id}/proposals`)
-              }
-              className="w-full bg-green-500 text-white py-2 rounded-lg hover:bg-green-600 transition"
+        {projects.length === 0 ? (
+          <div className="bg-white rounded-xl p-10 text-center text-gray-400 shadow">
+            No projects posted yet.{" "}
+            <span
+              className="text-teal-600 cursor-pointer font-semibold"
+              onClick={() => navigate("/client/post-project")}
             >
-              View Proposals
-            </button>
+              Post one now!
+            </span>
           </div>
-        ))}
+        ) : (
+          <div className="space-y-4">
+            {projects.map((p) => (
+              <div key={p.id} className="bg-white rounded-xl shadow p-6 border border-gray-100 hover:shadow-md transition">
+                <div className="flex justify-between items-start">
+                  <div>
+                    <h3 className="text-lg font-bold text-gray-800">{p.title}</h3>
+                    <p className="text-gray-500 text-sm mt-1">{p.description?.slice(0, 100)}...</p>
+                    <div className="flex gap-4 mt-2 text-sm text-gray-500">
+                      <span className="font-semibold text-gray-700">₹{p.budget}</span>
+                      {p.deadline && <span>📅 {formatDate(p.deadline)}</span>}
+                      {p.category && (
+                        <span className="bg-teal-50 text-teal-700 px-2 py-0.5 rounded text-xs capitalize">
+                          {p.category}
+                        </span>
+                      )}
+                    </div>
+                    {p.skills && (
+                      <div className="flex gap-2 mt-2 flex-wrap">
+                        {p.skills.split(",").map((s, i) => (
+                          <span key={i} className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-xs">{s.trim()}</span>
+                        ))}
+                      </div>
+                    )}
+                  </div>
+                  <span className={`px-3 py-1 rounded-full text-xs font-semibold capitalize ${
+                    p.status === "open" ? "bg-green-100 text-green-700" : "bg-gray-100 text-gray-500"
+                  }`}>
+                    {p.status || "open"}
+                  </span>
+                </div>
+
+                {/* View Proposals Button */}
+                <div className="mt-4 border-t pt-4">
+                  <button
+                    onClick={() => navigate(`/client/projects/${p.id}/proposals`)}
+                    className="bg-teal-600 hover:bg-teal-700 text-white px-4 py-2 rounded-lg text-sm font-medium transition"
+                  >
+                    View Proposals →
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        )}
       </div>
     </div>
   );

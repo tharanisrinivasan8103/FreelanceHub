@@ -1,12 +1,11 @@
 import React, { useMemo, useEffect } from "react";
 import { NavLink, useNavigate } from "react-router-dom";
+import { useAuth } from "../context/AuthContext";
 
 const Sidebar = () => {
   const navigate = useNavigate();
+  const { logout } = useAuth();
 
-  // =============================
-  // GET USER SAFELY
-  // =============================
   const user = useMemo(() => {
     try {
       return JSON.parse(localStorage.getItem("user"));
@@ -15,9 +14,6 @@ const Sidebar = () => {
     }
   }, []);
 
-  // =============================
-  // REDIRECT IF NO USER
-  // =============================
   useEffect(() => {
     if (!user) {
       navigate("/login");
@@ -26,23 +22,13 @@ const Sidebar = () => {
 
   if (!user) return null;
 
-  // =============================
-  // LOGOUT
-  // =============================
-  const logout = () => {
-    localStorage.clear();
-    navigate("/login");
-  };
-
-  // =============================
-  // MENUS
-  // =============================
   const menus = {
     freelancer: [
       { name: "Dashboard", path: "/freelancer/dashboard", icon: "📊" },
       { name: "Find Projects", path: "/freelancer/find-projects", icon: "🔎" },
       { name: "My Projects", path: "/freelancer/my-projects", icon: "📁" },
       { name: "My Proposals", path: "/freelancer/proposals", icon: "📄" },
+      { name: "Submit Project", path: "/freelancer/submit-project", icon: "📤" },
       { name: "Profile", path: "/freelancer/profile", icon: "👤" },
     ],
     client: [
@@ -63,20 +49,15 @@ const Sidebar = () => {
 
   const menu = menus[user.role] || [];
 
-  const handleLogoClick = () => {
-    navigate(`/${user.role}/dashboard`);
-  };
-
   return (
     <div className="w-64 min-h-screen bg-gradient-to-b from-slate-900 to-slate-800 text-white flex flex-col justify-between shadow-xl">
 
-      {/* TOP SECTION */}
+      {/* TOP */}
       <div>
-
         {/* LOGO */}
         <div
           className="p-6 border-b border-slate-700 cursor-pointer"
-          onClick={handleLogoClick}
+          onClick={() => navigate(`/${user.role}/dashboard`)}
         >
           <h1 className="text-xl font-bold flex items-center gap-2">
             <span className="bg-green-500 p-2 rounded-lg">💼</span>
@@ -92,14 +73,12 @@ const Sidebar = () => {
             </div>
             <div>
               <p className="font-semibold">{user?.name}</p>
-              <p className="text-sm text-gray-400 capitalize">
-                {user?.role}
-              </p>
+              <p className="text-sm text-gray-400 capitalize">{user?.role}</p>
             </div>
           </div>
         </div>
 
-        {/* MENU TITLE */}
+        {/* MENU LABEL */}
         <div className="px-6 pt-4 text-gray-400 text-sm tracking-wide">
           MENU
         </div>

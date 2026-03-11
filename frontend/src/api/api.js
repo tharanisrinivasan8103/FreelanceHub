@@ -1,33 +1,19 @@
 import axios from "axios";
 
-// ======================================================
-// BASE URL
-// ======================================================
 const BASE_URL = "http://localhost:5000/api";
 
-// ======================================================
-// CREATE AXIOS INSTANCE
-// ======================================================
 const API = axios.create({
   baseURL: BASE_URL,
-  headers: {
-    "Content-Type": "application/json",
-  },
-  withCredentials: false, // prevent CORS cookie issues
+  headers: { "Content-Type": "application/json" },
+  withCredentials: false,
 });
 
-// ======================================================
-// REQUEST INTERCEPTOR
-// Attach JWT Token Automatically
-// ======================================================
 API.interceptors.request.use(
   (config) => {
     const token = localStorage.getItem("token");
-
     if (token) {
-      config.headers["Authorization"] = `Bearer ${token}`;
+      config.headers.Authorization = `Bearer ${token}`;
     }
-
     return config;
   },
   (error) => {
@@ -36,16 +22,11 @@ API.interceptors.request.use(
   }
 );
 
-// ======================================================
-// RESPONSE INTERCEPTOR
-// Handle Token Expire / Unauthorized
-// ======================================================
 API.interceptors.response.use(
   (response) => response,
   (error) => {
     if (error.response) {
       console.error("API Error:", error.response.data);
-
       if (error.response.status === 401) {
         alert("Session expired. Please login again.");
         localStorage.removeItem("token");
@@ -55,67 +36,41 @@ API.interceptors.response.use(
     } else {
       console.error("Network Error:", error.message);
     }
-
     return Promise.reject(error);
   }
 );
 
-// ======================================================
-// AUTH API
-// ======================================================
+// AUTH
 export const registerUser = (data) => API.post("/auth/register", data);
-
 export const loginUser = (data) => API.post("/auth/login", data);
 
-// ======================================================
-// USER API
-// ======================================================
+// USERS
 export const getAllUsers = () => API.get("/users");
-
 export const getFreelancers = () => API.get("/users/freelancers");
-
 export const getClients = () => API.get("/users/clients");
 
-// ======================================================
-// PROJECT API
-// =====================================================
-// when posting a project we need to include the authenticated
-// client's id. instead of relying on every caller to remember to
-// send it we automatically read the current user from
-// localStorage and merge the value in here. callers can still pass
-// a `client_id` explicitly if they prefer (useful for tests).
+// PROJECTS
 export const createProject = (data) => {
   const user = JSON.parse(localStorage.getItem("user") || "{}");
-  const payload = {
-    ...data,
-    client_id: data.client_id || user.id, // prefer passed value
-  };
-  return API.post("/projects", payload);
+  return API.post("/projects", { ...data, client_id: data.client_id || user.id });
 };
-
 export const getAllProjects = () => API.get("/projects");
+export const getClientProjects = (clientId) => API.get(`/projects/client/${clientId}`);
+export const getFreelancerDashboard = () => API.get("/projects/freelancer/dashboard");
 
-export const getClientProjects = (clientId) =>
-  API.get(`/projects/client/${clientId}`);
-
-// ======================================================
-// PROPOSAL API
-// ======================================================
+// PROPOSALS
 export const sendProposal = (data) => API.post("/proposals", data);
+export const getProjectProposals = (projectId) => API.get(`/proposals/project/${projectId}`);
+export const getMyProposals = () => API.get("/proposals/my");
 
-export const getProjectProposals = (projectId) =>
-  API.get(`/proposals/project/${projectId}`);
+// SUBMISSIONS
+export const submitProject = (data) => API.post("/submissions", data);
+export const getMySubmissions = () => API.get("/submissions/my");
+export const getProjectSubmissions = (projectId) => API.get(`/submissions/project/${projectId}`);
+export const approveSubmission = (id) => API.put(`/submissions/${id}/approve`);
+export const requestRevision = (id, feedback) => API.put(`/submissions/${id}/revision`, { feedback });
 
-export const getFreelancerProposals = (freelancerId) =>
-  API.get(`/proposals/freelancer/${freelancerId}`);
+// ADMIN
+export const getAdminDashboard = () => API.get("/admin/dashboard");
 
-// ======================================================
-// ADMIN API
-// ======================================================
-export const getAdminDashboard = () =>
-  API.get("/admin/dashboard");
-
-// ======================================================
-// EXPORT DEFAULT
-// ======================================================
 export default API;

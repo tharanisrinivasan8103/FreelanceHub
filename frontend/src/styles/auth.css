@@ -1,63 +1,59 @@
 /* ================= PAGE BACKGROUND ================= */
-
 .register-page {
   min-height: 100vh;
   background: linear-gradient(to right, #0f2027, #134e4a);
   display: flex;
   justify-content: center;
   align-items: center;
+  padding: 16px;
 }
 
 /* ================= CENTER CARD ================= */
-
 .register-wrapper {
   width: 100%;
-  max-width: 340px;
+  max-width: 400px;           /* ✅ 340 → 400 (2-column fields fit) */
   background: white;
-  padding: 20px;
+  padding: 16px 20px;         /* ✅ padding குறைச்சோம் */
   border-radius: 12px;
   box-shadow: 0 8px 20px rgba(0, 0, 0, 0.15);
   color: #1f2937;
 }
 
 /* ================= HEADER ================= */
-
 .register-header {
   text-align: center;
-  margin-bottom: 14px;
+  margin-bottom: 10px;        /* ✅ குறைச்சோம் */
 }
 
 .logo-icon {
-  font-size: 18px;
-  margin-bottom: 6px;
+  font-size: 16px;
+  margin-bottom: 4px;
 }
 
 .register-header h2 {
-  font-size: 18px;
-  margin-bottom: 3px;
+  font-size: 16px;
+  margin-bottom: 2px;
 }
 
 .register-header p {
-  font-size: 12px;
+  font-size: 11px;
   color: #6b7280;
 }
 
-/* ================= TOGGLE BUTTON ================= */
-
+/* ================= TOGGLE ================= */
 .toggle-container {
   display: flex;
   width: 100%;
-  margin-bottom: 14px;
+  margin-bottom: 10px;        /* ✅ குறைச்சோம் */
   background: #e5e7eb;
   border-radius: 8px;
   padding: 3px;
 }
 
-/* Default button style */
 .toggle-container button {
   flex: 1;
-  padding: 8px;
-  font-size: 13px;
+  padding: 7px;               /* ✅ குறைச்சோம் */
+  font-size: 12px;
   font-weight: 600;
   border-radius: 6px;
   border: none;
@@ -67,20 +63,17 @@
   transition: 0.3s;
 }
 
-/* ACTIVE BUTTON (Login or Register) */
 .toggle-container .active {
   background: linear-gradient(to right, #1f7a6c, #1e6b5f);
   color: white;
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.15);
 }
 
-/* Hover effect */
 .toggle-container button:hover {
   background: #d1d5db;
 }
 
 /* ================= FORM ================= */
-
 .register-form {
   display: flex;
   flex-direction: column;
@@ -88,17 +81,21 @@
 }
 
 .register-form label {
-  font-size: 12px;
-  margin: 8px 0 4px;
+  font-size: 11px;            /* ✅ 12 → 11 */
+  margin: 5px 0 3px;          /* ✅ குறைச்சோம் */
+  font-weight: 600;
+  color: #374151;
 }
 
 .register-form input {
   width: 100%;
-  padding: 9px;
-  font-size: 13px;
+  padding: 7px 9px;           /* ✅ 9px → 7px */
+  font-size: 12px;
   border-radius: 6px;
   border: 1px solid #d1d5db;
   outline: none;
+  box-sizing: border-box;
+  margin-bottom: 0;
 }
 
 .register-form input:focus {
@@ -106,28 +103,28 @@
 }
 
 /* ================= ROLE SELECTION ================= */
-
 .role-selection {
   display: flex;
   width: 100%;
   gap: 8px;
-  margin-top: 8px;
+  margin-top: 6px;
 }
 
 .role-box {
   flex: 1;
   text-align: center;
-  padding: 10px 6px;
+  padding: 8px 6px;           /* ✅ 10px → 8px */
   border-radius: 10px;
   border: 1px solid #d1d5db;
   cursor: pointer;
   transition: 0.3s;
   background: #f9fafb;
+  font-size: 18px;
 }
 
 .role-box p {
-  margin-top: 4px;
-  font-size: 12px;
+  margin-top: 3px;
+  font-size: 11px;
 }
 
 .role-box.active {
@@ -135,13 +132,12 @@
   background: #ecfdf5;
 }
 
-/* ================= MAIN BUTTON ================= */
-
+/* ================= BUTTON ================= */
 .create-btn {
   width: 100%;
-  margin-top: 14px;
-  padding: 10px;
-  font-size: 14px;
+  margin-top: 12px;           /* ✅ 14 → 12 */
+  padding: 9px;               /* ✅ 10 → 9 */
+  font-size: 13px;
   font-weight: 600;
   border-radius: 8px;
   border: none;
@@ -156,11 +152,10 @@
   transform: translateY(-1px);
 }
 
-/* ================= SUCCESS MSG ================= */
-
+/* ================= MESSAGE ================= */
 .success-msg {
   text-align: center;
-  font-size: 12px;
-  margin-bottom: 8px;
-  color: #10b981;
+  font-size: 11px;
+  margin-bottom: 6px;
+  color: #ef4444;
 }

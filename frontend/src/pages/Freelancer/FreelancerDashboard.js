@@ -1,104 +1,139 @@
-import React from "react";
+import React, { useEffect, useState } from "react";
+import { getFreelancerDashboard } from "../../api/api";
+import { useNavigate } from "react-router-dom";
 
 const FreelancerDashboard = () => {
+  const user = JSON.parse(localStorage.getItem("user") || "{}");
+  const navigate = useNavigate();
+  const [data, setData] = useState({ activeProjects: 0, pendingProposals: 0, projects: [] });
+  const [loading, setLoading] = useState(true);
+
+  useEffect(() => {
+    const fetch = async () => {
+      try {
+        const res = await getFreelancerDashboard();
+        setData(res.data);
+      } catch (err) {
+        console.error(err);
+      }
+      setLoading(false);
+    };
+    fetch();
+  }, []);
+
+  // ✅ Date format fix: 2026-03-17T18:30:00.000Z → 17 Mar 2026
+  const formatDate = (dateStr) => {
+    if (!dateStr) return "";
+    const d = new Date(dateStr);
+    return d.toLocaleDateString("en-IN", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+  };
+
+  // ✅ Proposal status badge color
+  const getStatusStyle = (status) => {
+    if (status === "accepted") return "bg-green-100 text-green-600";
+    if (status === "rejected") return "bg-red-100 text-red-600";
+    return "bg-yellow-100 text-yellow-600";
+  };
+
+  if (loading) return <div className="text-center py-10 text-gray-500">Loading...</div>;
+
   return (
-    <div className="max-w-7xl mx-auto">
-
-      {/* Header */}
-      <div className="mb-10">
-        <h1 className="text-3xl font-bold text-gray-800">
-          Welcome back, Sarah 👋
-        </h1>
-        <p className="text-gray-500 mt-2">
-          Here's your freelancing overview
-        </p>
+    <div>
+      <div className="mb-8">
+        <h1 className="text-2xl font-bold text-gray-800">Welcome back, {user.name} 👋</h1>
+        <p className="text-gray-500 mt-1">Here's your freelancing overview</p>
       </div>
 
-      {/* Stats Cards */}
-      <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-6 mb-12">
-
-        <div className="bg-white p-6 rounded-2xl shadow-sm border">
-          <h4 className="text-gray-500 text-sm">Active Projects</h4>
-          <h2 className="text-3xl font-bold mt-2">4</h2>
-          <p className="text-green-500 text-sm mt-1">+1 new</p>
+      {/* STATS */}
+      <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
+        <div className="bg-white rounded-xl p-6 shadow-sm border-l-4 border-blue-500">
+          <p className="text-sm text-gray-500">Applied Projects</p>
+          <h2 className="text-3xl font-bold text-blue-600 mt-1">{data.activeProjects}</h2>
         </div>
-
-        <div className="bg-white p-6 rounded-2xl shadow-sm border">
-          <h4 className="text-gray-500 text-sm">Total Earnings</h4>
-          <h2 className="text-3xl font-bold mt-2">$52K</h2>
-          <p className="text-green-500 text-sm mt-1">+15% this month</p>
+        <div className="bg-white rounded-xl p-6 shadow-sm border-l-4 border-yellow-500">
+          <p className="text-sm text-gray-500">Pending Proposals</p>
+          <h2 className="text-3xl font-bold text-yellow-600 mt-1">{data.pendingProposals}</h2>
         </div>
-
-        <div className="bg-white p-6 rounded-2xl shadow-sm border">
-          <h4 className="text-gray-500 text-sm">Avg Rating</h4>
-          <h2 className="text-3xl font-bold mt-2">4.9</h2>
-          <p className="text-green-500 text-sm mt-1">Top 5%</p>
+        <div
+          onClick={() => navigate("/freelancer/find-projects")}
+          className="bg-teal-600 hover:bg-teal-700 cursor-pointer rounded-xl p-6 shadow-sm text-white transition"
+        >
+          <p className="text-sm text-teal-100">Find New Projects</p>
+          <h2 className="text-xl font-bold mt-1">Browse Projects →</h2>
         </div>
-
-        <div className="bg-white p-6 rounded-2xl shadow-sm border">
-          <h4 className="text-gray-500 text-sm">Pending Proposals</h4>
-          <h2 className="text-3xl font-bold mt-2">7</h2>
-          <p className="text-gray-500 text-sm mt-1">3 viewed</p>
-        </div>
-
       </div>
 
-      {/* Main Grid */}
-      <div className="grid grid-cols-1 lg:grid-cols-3 gap-8">
+      {/* QUICK ACTIONS */}
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+        <button
+          onClick={() => navigate("/freelancer/find-projects")}
+          className="bg-blue-600 hover:bg-blue-700 text-white p-5 rounded-xl text-left transition"
+        >
+          <div className="text-2xl mb-2">🔎</div>
+          <h3 className="font-bold text-lg">Find Projects</h3>
+          <p className="text-blue-200 text-sm">Browse available projects</p>
+        </button>
+        <button
+          onClick={() => navigate("/freelancer/proposals")}
+          className="bg-green-600 hover:bg-green-700 text-white p-5 rounded-xl text-left transition"
+        >
+          <div className="text-2xl mb-2">📄</div>
+          <h3 className="font-bold text-lg">My Proposals</h3>
+          <p className="text-green-200 text-sm">Track your submitted proposals</p>
+        </button>
+      </div>
 
-        {/* Active Project */}
-        <div className="lg:col-span-2 bg-white p-6 rounded-2xl shadow-sm border">
-          <h2 className="text-xl font-semibold mb-4">
-            Active Projects
-          </h2>
+      {/* PROJECTS YOU APPLIED TO */}
+      <div className="bg-white rounded-xl shadow-sm p-6">
+        <h2 className="text-lg font-bold text-gray-700 mb-4">Projects You Applied To</h2>
 
-          <div className="border rounded-xl p-5">
-            <h3 className="text-lg font-semibold">
-              Mobile App Development
-            </h3>
-
-            <p className="text-gray-500 mt-2 mb-4">
-              Build a cross-platform mobile app with real-time tracking.
-            </p>
-
-            <div className="flex justify-between text-sm text-gray-500">
-              <span>$8,000 - $12,000</span>
-              <span>8 proposals</span>
-            </div>
+        {data.projects.length === 0 ? (
+          <p className="text-gray-400 text-center py-8">
+            No projects yet.{" "}
+            <span
+              className="text-blue-500 font-semibold cursor-pointer"
+              onClick={() => navigate("/freelancer/find-projects")}
+            >
+              Find projects now!
+            </span>
+          </p>
+        ) : (
+          <div className="space-y-3">
+            {data.projects.map((p) => (
+              <div
+                key={p.id}
+                className="flex justify-between items-center p-4 bg-gray-50 rounded-lg border"
+              >
+                <div>
+                  <h3 className="font-semibold text-gray-800">{p.title}</h3>
+                  <p className="text-sm text-gray-500 mt-1">
+                    {p.description?.slice(0, 70)}...
+                  </p>
+                  <div className="flex items-center gap-4 mt-2 text-sm">
+                    <span className="text-gray-500">
+                      Budget: <span className="font-semibold text-gray-700">₹{p.budget}</span>
+                    </span>
+                    {/* ✅ Your Bid amount காட்டுது */}
+                    <span className="text-teal-600 font-semibold">
+                      Your Bid: ₹{p.my_bid}
+                    </span>
+                  </div>
+                </div>
+                {/* ✅ Proposal status badge */}
+                <span className={`px-3 py-1 rounded-full text-xs font-semibold capitalize ${getStatusStyle(p.proposal_status)}`}>
+                  {p.proposal_status || "Pending"}
+                </span>
+              </div>
+            ))}
           </div>
-        </div>
-
-        {/* Profile Completion */}
-        <div className="bg-white p-6 rounded-2xl shadow-sm border">
-          <h2 className="text-lg font-semibold mb-6">
-            Profile Completion
-          </h2>
-
-          <Progress label="Basic Info" value={100} />
-          <Progress label="Portfolio" value={75} />
-          <Progress label="Skills" value={90} />
-          <Progress label="Certifications" value={40} />
-        </div>
-
+        )}
       </div>
-
     </div>
   );
 };
-
-const Progress = ({ label, value }) => (
-  <div className="mb-4">
-    <div className="flex justify-between text-sm mb-1">
-      <span>{label}</span>
-      <span>{value}%</span>
-    </div>
-    <div className="w-full bg-gray-200 rounded-full h-2">
-      <div
-        className="bg-teal-500 h-2 rounded-full"
-        style={{ width: `${value}%` }}
-      />
-    </div>
-  </div>
-);
 
 export default FreelancerDashboard;

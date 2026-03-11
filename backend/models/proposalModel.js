@@ -1,108 +1,40 @@
-const db = require("../config/db");
+const Proposal = require("../models/proposalModel");
 
+// ================= SEND PROPOSAL =================
+exports.sendProposal = (req, res) => {
+  const { project_id, bid, message } = req.body;
 
+  if (!req.user) {
+    return res.status(401).json({
+      message: "Unauthorized",
+    });
+  }
 
-// SEND PROPOSAL
+  const freelancer_id = req.user.id; // 🔥 from token
 
-exports.createProposal = (
+  if (!project_id || !bid || !message) {
+    return res.status(400).json({
+      message: "All fields are required",
+    });
+  }
 
-project_id,
+  Proposal.createProposal(
+    project_id,
+    freelancer_id,
+    bid,
+    message,
+    (err, result) => {
+      if (err) {
+        console.log(err);
+        return res.status(500).json({
+          message: "Server Error",
+        });
+      }
 
-freelancer_id,
-
-bid,
-
-message,
-
-callback
-
-) => {
-
-const sql = `
-INSERT INTO proposals
-(project_id, freelancer_id, bid, message)
-VALUES (?, ?, ?, ?)
-`;
-
-db.query(sql,
-[project_id, freelancer_id, bid, message],
-callback);
-
-};
-
-
-
-// GET ALL PROPOSALS FOR PROJECT
-
-exports.getProposalsByProject = (
-
-project_id,
-
-callback
-
-) => {
-
-const sql = `
-SELECT proposals.*,
-users.name AS freelancer_name
-FROM proposals
-JOIN users ON proposals.freelancer_id = users.id
-WHERE project_id = ?
-ORDER BY proposals.id DESC
-`;
-
-db.query(sql,
-[project_id],
-callback);
-
-};
-
-
-
-// GET FREELANCER PROPOSALS
-
-exports.getProposalsByFreelancer = (
-
-freelancer_id,
-
-callback
-
-) => {
-
-const sql = `
-SELECT proposals.*,
-projects.title
-FROM proposals
-JOIN projects ON proposals.project_id = projects.id
-WHERE freelancer_id = ?
-ORDER BY proposals.id DESC
-`;
-
-db.query(sql,
-[freelancer_id],
-callback);
-
-};
-
-
-
-// DELETE PROPOSAL
-
-exports.deleteProposal = (
-
-id,
-
-callback
-
-) => {
-
-const sql = `
-DELETE FROM proposals
-WHERE id = ?
-`;
-
-db.query(sql,
-[id],
-callback);
-
+      res.status(201).json({
+        message: "Proposal Sent Successfully",
+        proposalId: result.insertId,
+      });
+    }
+  );
 };
