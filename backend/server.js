@@ -32,21 +32,24 @@ app.use("/api/messages",    messageRoutes);
 
 app.use((req, res) => res.status(404).json({ message: "Route not found" }));
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, async () => {
-  console.log("=================================");
-  console.log(`Server running on port ${PORT}`);
-  console.log("=================================");
+module.exports = app;
 
-  // Auto-create default admin
-  const bcrypt = require("bcryptjs");
-  const adminEmail = "tharani123@gmail.com";
-  db.query("SELECT id FROM users WHERE email=?", [adminEmail], async (err, rows) => {
-    if (!err && rows.length === 0) {
-      const hash = await bcrypt.hash("1234567890", 10);
-      db.query("INSERT INTO users (name, email, password, role) VALUES (?,?,?,?)",
-        ["Admin", adminEmail, hash, "admin"]);
-      console.log("✅ Default admin created");
-    }
+if (require.main === module) {
+  const PORT = process.env.PORT || 5000;
+  app.listen(PORT, async () => {
+    console.log("=================================");
+    console.log(`Server running on port ${PORT}`);
+    console.log("=================================");
+
+    const bcrypt = require("bcryptjs");
+    const adminEmail = "tharani123@gmail.com";
+    db.query("SELECT id FROM users WHERE email=?", [adminEmail], async (err, rows) => {
+      if (!err && rows.length === 0) {
+        const hash = await bcrypt.hash("1234567890", 10);
+        db.query("INSERT INTO users (name, email, password, role) VALUES (?,?,?,?)",
+          ["Admin", adminEmail, hash, "admin"]);
+        console.log("✅ Default admin created");
+      }
+    });
   });
-});
+}
