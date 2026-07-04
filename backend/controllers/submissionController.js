@@ -1,130 +1,107 @@
 const db = require("../config/db");
 
-// ================= SUBMIT PROJECT =================
-exports.submitProject = (req, res) => {
-  const { project_id, description, github_link, live_link } = req.body;
+// ✅ Freelancer submits work
+const submitWork = (req, res) => {
   const freelancer_id = req.user.id;
+  const { project_id, description, github_link, live_link } = req.body;
 
-  if (!project_id || !description) {
-    return res.status(400).json({ message: "Project and description are required" });
-  }
+  if (!project_id)  return res.status(400).json({ message: "project_id is required" });
+  if (!description) return res.status(400).json({ message: "description is required" });
 
-  // Check if already submitted
   db.query(
     "SELECT id FROM submissions WHERE project_id = ? AND freelancer_id = ?",
     [project_id, freelancer_id],
-    (err, existing) => {
-      if (err) return res.status(500).json({ message: err.message });
+    (err, rows) => {
+      if (err) return res.status(500).json({ message: "DB error", error: err });
 
-      if (existing.length > 0) {
-        return res.status(400).json({ message: "You already submitted this project" });
-      }
-
-      db.query(
-        `INSERT INTO submissions 
-         (project_id, freelancer_id, description, github_link, live_link, status) 
-         VALUES (?, ?, ?, ?, ?, 'submitted')`,
-        [project_id, freelancer_id, description, github_link || null, live_link || null],
-        (err, result) => {
-          if (err) {
-            console.error("Submit Project Error:", err);
-            return res.status(500).json({ message: err.message });
+      if (rows.length > 0) {
+        db.query(
+          `UPDATE submissions
+           SET description=?, github_link=?, live_link=?, status='submitted'
+           WHERE project_id=? AND freelancer_id=?`,
+          [description, github_link || null, live_link || null, project_id, freelancer_id],
+          (err2) => {
+            if (err2) return res.status(500).json({ message: "Update failed", error: err2 });
+            return res.json({ message: "Submission updated successfully" });
           }
-
-          // Update project status to 'in-progress'
-          db.query(
-            "UPDATE projects SET status = 'in-progress' WHERE id = ?",
-            [project_id]
-          );
-
-          res.status(201).json({
-            message: "Project Submitted Successfully",
-            submissionId: result.insertId
-          });
-        }
-      );
+        );
+      } else {
+        db.query(
+          `INSERT INTO submissions (project_id, freelancer_id, description, github_link, live_link, status)
+           VALUES (?, ?, ?, ?, ?, 'submitted')`,
+          [project_id, freelancer_id, description, github_link || null, live_link || null],
+          (err2) => {
+            if (err2) return res.status(500).json({ message: "Insert failed", error: err2 });
+            return res.status(201).json({ message: "Work submitted successfully" });
+          }
+        );
+      }
     }
   );
 };
 
-// ================= GET MY SUBMISSIONS (Freelancer) =================
-exports.getMySubmissions = (req, res) => {
+// ✅ Freelancer: get their own submissions
+const getMySubmissions = (req, res) => {
   const freelancer_id = req.user.id;
-
   db.query(
-    `SELECT s.*, p.title AS project_title, p.budget AS project_budget
+    `SELECT s.*, p.title AS project_title
      FROM submissions s
      JOIN projects p ON s.project_id = p.id
      WHERE s.freelancer_id = ?
      ORDER BY s.id DESC`,
     [freelancer_id],
-    (err, result) => {
-      if (err) return res.status(500).json({ message: err.message });
-      res.status(200).json(result);
+    (err, rows) => {
+      if (err) return res.status(500).json({ message: "DB error", error: err });
+      res.json(rows);
     }
   );
 };
 
-// ================= GET SUBMISSIONS FOR A PROJECT (Client) =================
-exports.getProjectSubmissions = (req, res) => {
-  const project_id = req.params.id;
+// ✅ Client: get all submissions for a project  ← FIXED: added project_title
+const getProjectSubmissions = (req, res) => {
+  const { projectId } = req.params;
+
+  console.log("getProjectSubmissions called — projectId:", projectId); // debug log
 
   db.query(
-    `SELECT s.*, u.name AS freelancer_name, u.email AS freelancer_email,
-     p.title AS project_title
+    `SELECT s.*,
+            u.name  AS freelancer_name,
+            u.email AS freelancer_email,
+            p.title AS project_title
      FROM submissions s
-     JOIN users u ON s.freelancer_id = u.id
-     JOIN projects p ON s.project_id = p.id
+     JOIN users    u ON s.freelancer_id = u.id
+     JOIN projects p ON s.project_id   = p.id
      WHERE s.project_id = ?
      ORDER BY s.id DESC`,
-    [project_id],
-    (err, result) => {
-      if (err) return res.status(500).json({ message: err.message });
-      res.status(200).json(result);
+    [projectId],
+    (err, rows) => {
+      if (err) {
+        console.error("getProjectSubmissions DB error:", err);
+        return res.status(500).json({ message: "DB error", error: err });
+      }
+      console.log("getProjectSubmissions rows:", rows.length); // debug log
+      res.json(rows);
     }
   );
 };
 
-// ================= APPROVE SUBMISSION (Client) =================
-exports.approveSubmission = (req, res) => {
-  const submission_id = req.params.id;
+// ✅ Client: approve or request revision
+const updateSubmissionStatus = (req, res) => {
+  const { id } = req.params;
+  const { status, feedback } = req.body;
+
+  if (!["approved", "revision"].includes(status)) {
+    return res.status(400).json({ message: "Invalid status. Use 'approved' or 'revision'" });
+  }
 
   db.query(
-    "UPDATE submissions SET status = 'approved' WHERE id = ?",
-    [submission_id],
+    "UPDATE submissions SET status=?, feedback=? WHERE id=?",
+    [status, feedback || null, id],
     (err) => {
-      if (err) return res.status(500).json({ message: err.message });
-
-      // Get project_id to update project status
-      db.query(
-        "SELECT project_id FROM submissions WHERE id = ?",
-        [submission_id],
-        (err, result) => {
-          if (!err && result.length > 0) {
-            db.query(
-              "UPDATE projects SET status = 'completed' WHERE id = ?",
-              [result[0].project_id]
-            );
-          }
-        }
-      );
-
-      res.status(200).json({ message: "Submission Approved! Project Completed." });
+      if (err) return res.status(500).json({ message: "Update failed", error: err });
+      res.json({ message: `Submission ${status} successfully` });
     }
   );
 };
 
-// ================= REQUEST REVISION (Client) =================
-exports.requestRevision = (req, res) => {
-  const submission_id = req.params.id;
-  const { feedback } = req.body;
-
-  db.query(
-    "UPDATE submissions SET status = 'revision', feedback = ? WHERE id = ?",
-    [feedback || "Please revise and resubmit.", submission_id],
-    (err) => {
-      if (err) return res.status(500).json({ message: err.message });
-      res.status(200).json({ message: "Revision Requested" });
-    }
-  );
-};
+module.exports = { submitWork, getMySubmissions, getProjectSubmissions, updateSubmissionStatus };

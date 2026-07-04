@@ -4,7 +4,7 @@ const db = require("../config/db");
 // CREATE USER
 
 exports.createUser = (name, email, password, role, callback) => {
-
+console.log("Creating user with:", { name, email, role });
 const sql = `
 INSERT INTO users (name, email, password, role)
 VALUES (?, ?, ?, ?)

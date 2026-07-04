@@ -1,342 +1,221 @@
-import React, { useState, useEffect, useRef, useCallback } from "react";
+import React, { useState, useRef } from "react";
 import API from "../../api/api";
 
-const Profile = () => {
-  const [activeTab, setActiveTab] = useState("profile");
-  const [profile, setProfile] = useState(null);
-  const [loading, setLoading] = useState(true);
+export default function Profile() {
+  const storedUser = JSON.parse(localStorage.getItem("user") || "{}");
+  const fileRef = useRef(null);
+  const [photo, setPhoto] = useState(localStorage.getItem("profile_photo") || null);
+  const [profile, setProfile] = useState({
+    name: storedUser.name || "",
+    email: storedUser.email || "",
+    phone: storedUser.phone || "",
+    role: storedUser.role || "",
+    bio: storedUser.bio || "",
+    skills: storedUser.skills || "",
+  });
   const [saving, setSaving] = useState(false);
-  const [success, setSuccess] = useState("");
-  const [error, setError] = useState("");
-  const [form, setForm] = useState({ name: "", email: "", phone: "", skills: "", bio: "" });
-  const [passwords, setPasswords] = useState({ current: "", newPass: "", confirm: "" });
+  const [toast, setToast] = useState("");
 
-  // IMAGE CROP STATE
-  const [photoURL, setPhotoURL] = useState(null);
-  const [showCropModal, setShowCropModal] = useState(false);
-  const [rawImage, setRawImage] = useState(null);
-  const fileInputRef = useRef(null);
-  const canvasRef = useRef(null);
-  const imageRef = useRef(null);
-  const [cropBox, setCropBox] = useState({ x: 50, y: 50, size: 200 });
-  const [dragging, setDragging] = useState(false);
-  const [resizing, setResizing] = useState(false);
-  const [dragStart, setDragStart] = useState({ x: 0, y: 0 });
-  const [imgSize, setImgSize] = useState({ w: 0, h: 0 });
+  const handleChange = (e) => setProfile({ ...profile, [e.target.name]: e.target.value });
 
-  useEffect(() => {
-    const fetchProfile = async () => {
-      try {
-        const res = await API.get("/users/profile");
-        setProfile(res.data);
-        setForm({
-          name: res.data.name || "",
-          email: res.data.email || "",
-          phone: res.data.phone || "",
-          skills: res.data.skills || "",
-          bio: res.data.bio || "",
-        });
-      } catch (err) {
-        setError("Failed to load profile");
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchProfile();
-  }, []);
-
-  const drawCropOverlay = useCallback(() => {
-    const canvas = canvasRef.current;
-    const image = imageRef.current;
-    if (!canvas || !image || imgSize.w === 0) return;
-    const ctx = canvas.getContext("2d");
-    canvas.width = imgSize.w;
-    canvas.height = imgSize.h;
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
-    ctx.drawImage(image, 0, 0, imgSize.w, imgSize.h);
-    ctx.fillStyle = "rgba(0,0,0,0.55)";
-    ctx.fillRect(0, 0, canvas.width, canvas.height);
-    ctx.save();
-    ctx.beginPath();
-    ctx.arc(cropBox.x + cropBox.size / 2, cropBox.y + cropBox.size / 2, cropBox.size / 2, 0, Math.PI * 2);
-    ctx.clip();
-    ctx.drawImage(image, 0, 0, imgSize.w, imgSize.h);
-    ctx.restore();
-    ctx.beginPath();
-    ctx.arc(cropBox.x + cropBox.size / 2, cropBox.y + cropBox.size / 2, cropBox.size / 2, 0, Math.PI * 2);
-    ctx.strokeStyle = "#14b8a6";
-    ctx.lineWidth = 2;
-    ctx.stroke();
-    ctx.fillStyle = "#14b8a6";
-    ctx.beginPath();
-    ctx.arc(cropBox.x + cropBox.size, cropBox.y + cropBox.size, 8, 0, Math.PI * 2);
-    ctx.fill();
-  }, [cropBox, imgSize]);
-
-  useEffect(() => {
-    if (showCropModal) drawCropOverlay();
-  }, [cropBox, showCropModal, drawCropOverlay]);
-
-  const handleFileSelect = (e) => {
+  const handlePhoto = (e) => {
     const file = e.target.files[0];
     if (!file) return;
-    if (!file.type.startsWith("image/")) { setError("Please select a valid image"); return; }
+    if (file.size > 2 * 1024 * 1024) { alert("Max photo size is 2MB"); return; }
     const reader = new FileReader();
-    reader.onload = () => { setRawImage(reader.result); setShowCropModal(true); };
+    reader.onloadend = () => { setPhoto(reader.result); localStorage.setItem("profile_photo", reader.result); };
     reader.readAsDataURL(file);
-    e.target.value = "";
   };
 
-  const handleImageLoad = (e) => {
-    const img = e.target;
-    const maxW = 480;
-    const scale = Math.min(1, maxW / img.naturalWidth);
-    const w = Math.round(img.naturalWidth * scale);
-    const h = Math.round(img.naturalHeight * scale);
-    setImgSize({ w, h });
-    const size = Math.min(200, Math.round(w * 0.65), Math.round(h * 0.65));
-    setCropBox({ x: Math.round((w - size) / 2), y: Math.round((h - size) / 2), size });
+  const save = () => {
+    setSaving(true);
+    localStorage.setItem("user", JSON.stringify({ ...storedUser, ...profile }));
+    setTimeout(() => {
+      setSaving(false);
+      setToast("Profile saved successfully!");
+      setTimeout(() => setToast(""), 3000);
+    }, 600);
   };
 
-  const getPos = (e, canvas) => {
-    const rect = canvas.getBoundingClientRect();
-    return {
-      x: (e.clientX - rect.left) * (canvas.width / rect.width),
-      y: (e.clientY - rect.top) * (canvas.height / rect.height),
-    };
-  };
-
-  const handleMouseDown = (e) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const pos = getPos(e, canvas);
-    const rx = cropBox.x + cropBox.size;
-    const ry = cropBox.y + cropBox.size;
-    if (Math.hypot(pos.x - rx, pos.y - ry) < 14) {
-      setResizing(true); setDragStart(pos); return;
-    }
-    const cx = cropBox.x + cropBox.size / 2;
-    const cy = cropBox.y + cropBox.size / 2;
-    if (Math.hypot(pos.x - cx, pos.y - cy) < cropBox.size / 2) {
-      setDragging(true); setDragStart({ x: pos.x - cropBox.x, y: pos.y - cropBox.y });
-    }
-  };
-
-  const handleMouseMove = (e) => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const pos = getPos(e, canvas);
-    if (dragging) {
-      setCropBox((prev) => ({
-        ...prev,
-        x: Math.max(0, Math.min(imgSize.w - prev.size, pos.x - dragStart.x)),
-        y: Math.max(0, Math.min(imgSize.h - prev.size, pos.y - dragStart.y)),
-      }));
-    }
-    if (resizing) {
-      const newSize = Math.max(60, Math.min(
-        Math.min(imgSize.w - cropBox.x, imgSize.h - cropBox.y),
-        Math.hypot(pos.x - cropBox.x, pos.y - cropBox.y)
-      ));
-      setCropBox((prev) => ({ ...prev, size: Math.round(newSize) }));
-    }
-  };
-
-  const handleMouseUp = () => { setDragging(false); setResizing(false); };
-
-  const handleCropDone = () => {
-    const image = imageRef.current;
-    if (!image) return;
-    const scaleX = image.naturalWidth / imgSize.w;
-    const scaleY = image.naturalHeight / imgSize.h;
-    const outputSize = 200;
-    const canvas = document.createElement("canvas");
-    canvas.width = outputSize; canvas.height = outputSize;
-    const ctx = canvas.getContext("2d");
-    ctx.beginPath();
-    ctx.arc(outputSize / 2, outputSize / 2, outputSize / 2, 0, Math.PI * 2);
-    ctx.clip();
-    ctx.drawImage(image, cropBox.x * scaleX, cropBox.y * scaleY, cropBox.size * scaleX, cropBox.size * scaleY, 0, 0, outputSize, outputSize);
-    setPhotoURL(canvas.toDataURL("image/jpeg", 0.92));
-    setShowCropModal(false); setRawImage(null);
-  };
-
-  const handleSave = async () => {
-    if (!form.name || !form.email) { setError("Name and email are required"); return; }
-    try {
-      setSaving(true);
-      await API.put("/users/profile", { name: form.name, email: form.email, phone: form.phone, skills: form.skills, bio: form.bio });
-      setSuccess("Profile updated successfully!"); setError("");
-      setTimeout(() => setSuccess(""), 3000);
-    } catch (err) {
-      setError(err.response?.data?.message || "Failed to update profile");
-    } finally { setSaving(false); }
-  };
-
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen">
-        <div className="text-center">
-          <div className="w-10 h-10 border-4 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto mb-3"></div>
-          <p className="text-gray-500">Loading profile...</p>
-        </div>
-      </div>
-    );
-  }
+  const initials = profile.name?.charAt(0)?.toUpperCase() || "?";
+  const skills = profile.skills ? profile.skills.split(",").map(s => s.trim()).filter(Boolean) : [];
 
   return (
-    <div className="bg-gray-50 min-h-screen p-8">
-      <div className="max-w-5xl mx-auto">
-        <h1 className="text-3xl font-bold text-gray-800 mb-1">My Profile</h1>
-        <p className="text-gray-500 mb-8">Manage your account details, photo and security settings</p>
+    <div style={styles.page}>
+      {/* Toast */}
+      {toast && (
+        <div style={styles.toast}>
+          <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>
+          {toast}
+        </div>
+      )}
 
-        <div className="flex flex-col lg:flex-row gap-6">
-
-          {/* LEFT CARD */}
-          <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 flex flex-col items-center w-full lg:w-72">
-            <div className="relative mb-4">
-              {photoURL ? (
-                <img src={photoURL} alt="Profile" className="w-28 h-28 rounded-full object-cover border-4 border-teal-500 shadow" />
-              ) : (
-                <div className="w-28 h-28 rounded-full bg-teal-500 flex items-center justify-center text-white text-4xl font-bold shadow border-4 border-teal-400">
-                  {profile?.name?.charAt(0)?.toUpperCase() || "U"}
-                </div>
-              )}
-            </div>
-            <h2 className="text-xl font-bold text-gray-800 mb-1">{profile?.name}</h2>
-            <span className="bg-teal-100 text-teal-700 text-xs font-semibold px-3 py-1 rounded-full uppercase mb-2">{profile?.role}</span>
-            <p className="text-gray-400 text-sm mb-1">{profile?.email}</p>
-            <p className="text-gray-400 text-xs mb-6">
-              Member since {profile?.created_at ? new Date(profile.created_at).toLocaleDateString("en-US", { month: "short", year: "numeric" }) : "—"}
-            </p>
-            <input ref={fileInputRef} type="file" accept="image/*" onChange={handleFileSelect} className="hidden" id="photo-upload" />
-            <label htmlFor="photo-upload" className="w-full bg-teal-600 text-white text-sm font-semibold py-2 px-4 rounded-lg hover:bg-teal-700 transition cursor-pointer text-center mb-2">
-              🖼️ Choose Photo
-            </label>
-            {photoURL && (
-              <button onClick={() => setPhotoURL(null)} className="w-full bg-red-50 text-red-500 text-sm font-semibold py-2 px-4 rounded-lg hover:bg-red-100 transition border border-red-200">
-                🗑️ Remove Photo
-              </button>
-            )}
-          </div>
-
-          {/* RIGHT SECTION */}
-          <div className="flex-1">
-            <div className="flex gap-3 mb-6">
-              <button onClick={() => setActiveTab("profile")} className={`px-5 py-2 rounded-lg text-sm font-semibold transition ${activeTab === "profile" ? "bg-teal-600 text-white shadow" : "bg-white text-gray-600 border hover:bg-gray-50"}`}>👤 Profile</button>
-              <button onClick={() => setActiveTab("security")} className={`px-5 py-2 rounded-lg text-sm font-semibold transition ${activeTab === "security" ? "bg-teal-600 text-white shadow" : "bg-white text-gray-600 border hover:bg-gray-50"}`}>🔒 Security</button>
-            </div>
-
-            {success && <div className="mb-4 bg-green-100 text-green-600 px-4 py-3 rounded-lg text-sm">✅ {success}</div>}
-            {error && <div className="mb-4 bg-red-100 text-red-600 px-4 py-3 rounded-lg text-sm">⚠️ {error}</div>}
-
-            {activeTab === "profile" && (
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                <h3 className="text-lg font-bold text-gray-800 mb-1">Personal Information</h3>
-                <p className="text-gray-400 text-sm mb-6">Update your name, email, bio and phone</p>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Full Name *</label>
-                    <input type="text" value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-teal-500 outline-none" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Email Address *</label>
-                    <input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-teal-500 outline-none" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Phone Number</label>
-                    <input type="text" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+91 98765 43210" className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-teal-500 outline-none" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Role</label>
-                    <input type="text" value={profile?.role || ""} readOnly className="w-full border border-gray-200 bg-gray-50 rounded-lg px-4 py-2 text-sm text-gray-500 cursor-not-allowed" />
-                  </div>
-                </div>
-                <div className="mb-4">
-                  <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Skills</label>
-                  <input type="text" value={form.skills} onChange={(e) => setForm({ ...form, skills: e.target.value })} placeholder="React, Node.js, Python..." className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-teal-500 outline-none" />
-                  {form.skills && (
-                    <div className="flex flex-wrap gap-2 mt-2">
-                      {form.skills.split(",").map((s, i) => s.trim() ? <span key={i} className="bg-teal-100 text-teal-700 text-xs px-3 py-1 rounded-full">{s.trim()}</span> : null)}
-                    </div>
-                  )}
-                </div>
-                <div className="mb-6">
-                  <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Bio</label>
-                  <textarea value={form.bio} onChange={(e) => setForm({ ...form, bio: e.target.value })} placeholder="Tell clients about yourself..." rows="3" maxLength={300} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-teal-500 outline-none resize-none" />
-                  <p className="text-right text-xs text-gray-400">{form.bio.length}/300</p>
-                </div>
-                <button onClick={handleSave} disabled={saving} className="bg-teal-600 text-white px-8 py-2 rounded-lg hover:bg-teal-700 transition font-semibold text-sm disabled:opacity-50">
-                  {saving ? "Saving..." : "Save Changes"}
-                </button>
-              </div>
-            )}
-
-            {activeTab === "security" && (
-              <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6">
-                <h3 className="text-lg font-bold text-gray-800 mb-1">Change Password</h3>
-                <p className="text-gray-400 text-sm mb-6">Update your password to keep your account secure</p>
-                <div className="space-y-4 max-w-md">
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Current Password</label>
-                    <input type="password" value={passwords.current} onChange={(e) => setPasswords({ ...passwords, current: e.target.value })} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-teal-500 outline-none" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">New Password</label>
-                    <input type="password" value={passwords.newPass} onChange={(e) => setPasswords({ ...passwords, newPass: e.target.value })} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-teal-500 outline-none" />
-                  </div>
-                  <div>
-                    <label className="block text-xs font-semibold text-gray-600 uppercase mb-1">Confirm New Password</label>
-                    <input type="password" value={passwords.confirm} onChange={(e) => setPasswords({ ...passwords, confirm: e.target.value })} className="w-full border border-gray-300 rounded-lg px-4 py-2 text-sm focus:ring-2 focus:ring-teal-500 outline-none" />
-                  </div>
-                  {passwords.newPass && passwords.confirm && passwords.newPass !== passwords.confirm && (
-                    <p className="text-red-500 text-sm">Passwords do not match</p>
-                  )}
-                  <button disabled={!passwords.current || !passwords.newPass || passwords.newPass !== passwords.confirm} className="bg-teal-600 text-white px-8 py-2 rounded-lg hover:bg-teal-700 transition font-semibold text-sm disabled:opacity-50 disabled:cursor-not-allowed">
-                    Update Password
-                  </button>
-                </div>
-              </div>
-            )}
-          </div>
+      {/* Header */}
+      <div style={styles.header}>
+        <div>
+          <p style={styles.overline}>ACCOUNT</p>
+          <h1 style={styles.title}>My Profile</h1>
+          <p style={styles.subtitle}>Manage your personal information and preferences</p>
         </div>
       </div>
 
-      {/* CROP MODAL - NO LIBRARY - Pure Canvas */}
-      {showCropModal && rawImage && (
-        <div className="fixed inset-0 bg-black bg-opacity-70 flex items-center justify-center z-50 p-4">
-          <div className="bg-white rounded-2xl shadow-2xl p-6 w-full max-w-lg">
-            <h2 className="text-xl font-bold text-gray-800 mb-1">Crop Your Photo</h2>
-            <p className="text-gray-400 text-sm mb-4">
-              Drag the circle to move it. Drag the <span className="text-teal-600 font-semibold">teal dot</span> to resize.
-            </p>
+      <div style={styles.layout}>
+        {/* Left: Avatar Card */}
+        <div style={styles.avatarCard}>
+          <div style={styles.avatarWrap}>
+            {photo ? (
+              <img src={photo} alt="Profile" style={styles.avatarImg} />
+            ) : (
+              <div style={styles.avatarFallback}>{initials}</div>
+            )}
+            <button onClick={() => fileRef.current.click()} style={styles.editAvatarBtn} title="Change photo">
+              <svg width="14" height="14" fill="none" stroke="white" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M15.232 5.232l3.536 3.536m-2.036-5.036a2.5 2.5 0 113.536 3.536L6.5 21.036H3v-3.572L16.732 3.732z"/></svg>
+            </button>
+          </div>
+          <input type="file" ref={fileRef} onChange={handlePhoto} accept="image/jpeg,image/png,image/webp" style={{ display: "none" }} />
 
-            <img ref={imageRef} src={rawImage} alt="src" onLoad={handleImageLoad} style={{ display: "none" }} />
+          <h2 style={styles.avatarName}>{profile.name || "Your Name"}</h2>
+          <p style={styles.avatarEmail}>{profile.email}</p>
+          <span style={styles.roleBadge}>{profile.role || "Freelancer"}</span>
 
-            <div className="flex justify-center mb-6 rounded-xl overflow-hidden">
-              <canvas
-                ref={canvasRef}
-                style={{ maxWidth: "100%", cursor: dragging ? "grabbing" : resizing ? "nwse-resize" : "default", display: "block" }}
-                onMouseDown={handleMouseDown}
-                onMouseMove={handleMouseMove}
-                onMouseUp={handleMouseUp}
-                onMouseLeave={handleMouseUp}
-              />
+          {photo && (
+            <button onClick={() => { setPhoto(null); localStorage.removeItem("profile_photo"); }} style={styles.removePhotoBtn}>
+              Remove Photo
+            </button>
+          )}
+
+          <p style={styles.photoNote}>JPG, PNG, WebP — Max 2MB</p>
+
+          {/* Skills Preview */}
+          {skills.length > 0 && (
+            <div style={styles.skillsSection}>
+              <p style={styles.skillsLabel}>Skills</p>
+              <div style={styles.skillTags}>
+                {skills.slice(0, 6).map((s, i) => (
+                  <span key={i} style={styles.skillTag}>{s}</span>
+                ))}
+              </div>
             </div>
+          )}
+        </div>
 
-            <div className="flex gap-3">
-              <button onClick={() => { setShowCropModal(false); setRawImage(null); }} className="flex-1 border border-gray-300 text-gray-600 py-2 rounded-lg hover:bg-gray-50 transition font-medium">
-                Cancel
-              </button>
-              <button onClick={handleCropDone} className="flex-1 bg-teal-600 text-white py-2 rounded-lg hover:bg-teal-700 transition font-semibold">
-                Apply Crop
-              </button>
+        {/* Right: Form */}
+        <div style={styles.formCard}>
+          <div style={styles.formSection}>
+            <h3 style={styles.sectionTitle}>
+              <svg width="16" height="16" fill="none" stroke="#14b8a6" strokeWidth="2" viewBox="0 0 24 24"><path d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/></svg>
+              Personal Information
+            </h3>
+
+            <div style={styles.formGrid}>
+              <div>
+                <label style={styles.label}>Full Name</label>
+                <input name="name" value={profile.name} onChange={handleChange}
+                  placeholder="Your full name" style={styles.input} />
+              </div>
+              <div>
+                <label style={styles.label}>Phone Number</label>
+                <input name="phone" value={profile.phone} onChange={handleChange}
+                  placeholder="+91 98765 43210" style={styles.input} />
+              </div>
+              <div>
+                <label style={styles.label}>Email Address</label>
+                <div style={styles.inputWrap}>
+                  <input value={profile.email} disabled style={styles.inputDisabled} />
+                  <svg style={styles.lockIcon} width="13" height="13" fill="none" stroke="#94a3b8" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                </div>
+              </div>
+              <div>
+                <label style={styles.label}>Account Role</label>
+                <div style={styles.inputWrap}>
+                  <input value={profile.role} disabled style={{ ...styles.inputDisabled, textTransform: "capitalize" }} />
+                  <svg style={styles.lockIcon} width="13" height="13" fill="none" stroke="#94a3b8" strokeWidth="2" viewBox="0 0 24 24"><path d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z"/></svg>
+                </div>
+              </div>
             </div>
           </div>
+
+          <div style={styles.divider} />
+
+          <div style={styles.formSection}>
+            <h3 style={styles.sectionTitle}>
+              <svg width="16" height="16" fill="none" stroke="#14b8a6" strokeWidth="2" viewBox="0 0 24 24"><path d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"/></svg>
+              Skills & Expertise
+            </h3>
+            <label style={styles.label}>Skills <span style={{ color: "#94a3b8", fontWeight: 400, textTransform: "none" }}>(comma separated)</span></label>
+            <input name="skills" value={profile.skills} onChange={handleChange}
+              placeholder="React, Node.js, MySQL, Figma..." style={styles.input} />
+          </div>
+
+          <div style={styles.divider} />
+
+          <div style={styles.formSection}>
+            <h3 style={styles.sectionTitle}>
+              <svg width="16" height="16" fill="none" stroke="#14b8a6" strokeWidth="2" viewBox="0 0 24 24"><path d="M4 6h16M4 12h16M4 18h7"/></svg>
+              Bio
+            </h3>
+            <label style={styles.label}>About You</label>
+            <textarea name="bio" value={profile.bio} onChange={handleChange} rows={4}
+              placeholder="Describe your experience, expertise, and what makes you stand out to clients..."
+              style={{ ...styles.input, resize: "none", lineHeight: 1.6 }} />
+          </div>
+
+          <div style={styles.formFooter}>
+            <button onClick={save} disabled={saving} style={{ ...styles.saveBtn, opacity: saving ? 0.7 : 1 }}>
+              {saving ? (
+                <>
+                  <div style={styles.btnSpinner} />
+                  Saving...
+                </>
+              ) : (
+                <>
+                  <svg width="15" height="15" fill="none" stroke="currentColor" strokeWidth="2.5" viewBox="0 0 24 24"><path d="M5 13l4 4L19 7"/></svg>
+                  Save Profile
+                </>
+              )}
+            </button>
+            <p style={styles.saveNote}>Changes are saved locally</p>
+          </div>
         </div>
-      )}
+      </div>
     </div>
   );
-};
+}
 
-export default Profile;
+const styles = {
+  page: { background: "#f8fafc", minHeight: "100vh", padding: "36px 40px", fontFamily: "'Inter', 'Segoe UI', sans-serif" },
+  toast: { position: "fixed", top: 20, right: 20, background: "#065f46", color: "white", padding: "12px 18px", borderRadius: 10, fontSize: 13, fontWeight: 600, display: "flex", alignItems: "center", gap: 8, boxShadow: "0 8px 24px rgba(0,0,0,0.15)", zIndex: 100 },
+  header: { marginBottom: 28 },
+  overline: { fontSize: 11, fontWeight: 700, color: "#94a3b8", letterSpacing: "1.5px", textTransform: "uppercase", margin: "0 0 6px" },
+  title: { fontSize: 26, fontWeight: 700, color: "#0f172a", margin: "0 0 4px", letterSpacing: "-0.5px" },
+  subtitle: { fontSize: 14, color: "#64748b", margin: 0 },
+  layout: { display: "grid", gridTemplateColumns: "260px 1fr", gap: 20, alignItems: "start" },
+  avatarCard: { background: "white", border: "1px solid #e2e8f0", borderRadius: 14, padding: "28px 20px", textAlign: "center", boxShadow: "0 1px 3px rgba(0,0,0,0.05)", position: "sticky", top: 20 },
+  avatarWrap: { position: "relative", display: "inline-block", marginBottom: 14 },
+  avatarImg: { width: 80, height: 80, borderRadius: "50%", objectFit: "cover", border: "3px solid #14b8a6", display: "block" },
+  avatarFallback: { width: 80, height: 80, borderRadius: "50%", background: "linear-gradient(135deg,#0f766e,#0891b2)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 28, fontWeight: 800, color: "white", border: "3px solid #14b8a6" },
+  editAvatarBtn: { position: "absolute", bottom: 0, right: 0, width: 26, height: 26, borderRadius: "50%", background: "#0f766e", border: "2px solid white", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center" },
+  avatarName: { fontSize: 16, fontWeight: 700, color: "#0f172a", margin: "0 0 3px" },
+  avatarEmail: { fontSize: 12, color: "#94a3b8", margin: "0 0 10px" },
+  roleBadge: { display: "inline-block", background: "#f0fdfa", color: "#0f766e", border: "1px solid #99f6e4", borderRadius: 20, fontSize: 11, fontWeight: 700, padding: "3px 12px", textTransform: "capitalize" },
+  removePhotoBtn: { display: "block", margin: "12px auto 0", padding: "6px 14px", borderRadius: 7, border: "1px solid #fca5a5", background: "#fff1f2", color: "#dc2626", fontSize: 11, fontWeight: 600, cursor: "pointer" },
+  photoNote: { fontSize: 10, color: "#cbd5e1", marginTop: 6 },
+  skillsSection: { marginTop: 20, borderTop: "1px solid #f1f5f9", paddingTop: 16, textAlign: "left" },
+  skillsLabel: { fontSize: 10, fontWeight: 700, color: "#94a3b8", textTransform: "uppercase", letterSpacing: "0.8px", margin: "0 0 8px" },
+  skillTags: { display: "flex", flexWrap: "wrap", gap: 5 },
+  skillTag: { background: "#f0fdfa", color: "#0f766e", border: "1px solid #99f6e4", borderRadius: 5, padding: "3px 8px", fontSize: 10, fontWeight: 600 },
+  formCard: { background: "white", border: "1px solid #e2e8f0", borderRadius: 14, overflow: "hidden", boxShadow: "0 1px 3px rgba(0,0,0,0.05)" },
+  formSection: { padding: "24px 28px" },
+  sectionTitle: { display: "flex", alignItems: "center", gap: 8, fontSize: 14, fontWeight: 700, color: "#0f172a", margin: "0 0 18px" },
+  divider: { height: 1, background: "#f1f5f9", margin: "0 28px" },
+  formGrid: { display: "grid", gridTemplateColumns: "1fr 1fr", gap: "14px 20px" },
+  label: { fontSize: 11, fontWeight: 700, color: "#64748b", display: "block", marginBottom: 5, textTransform: "uppercase", letterSpacing: "0.7px" },
+  input: { width: "100%", padding: "10px 13px", border: "1.5px solid #e2e8f0", borderRadius: 8, fontSize: 13, outline: "none", background: "white", color: "#0f172a", boxSizing: "border-box", fontFamily: "inherit" },
+  inputWrap: { position: "relative" },
+  inputDisabled: { width: "100%", padding: "10px 36px 10px 13px", border: "1.5px solid #f1f5f9", borderRadius: 8, fontSize: 13, outline: "none", background: "#f8fafc", color: "#94a3b8", boxSizing: "border-box" },
+  lockIcon: { position: "absolute", right: 12, top: "50%", transform: "translateY(-50%)" },
+  formFooter: { padding: "20px 28px", background: "#f8fafc", borderTop: "1px solid #f1f5f9", display: "flex", alignItems: "center", gap: 16 },
+  saveBtn: { display: "flex", alignItems: "center", gap: 7, padding: "11px 24px", borderRadius: 9, border: "none", background: "#0f766e", color: "white", fontSize: 13, fontWeight: 700, cursor: "pointer" },
+  btnSpinner: { width: 14, height: 14, borderRadius: "50%", border: "2px solid rgba(255,255,255,0.4)", borderTopColor: "white" },
+  saveNote: { fontSize: 11, color: "#94a3b8", margin: 0 },
+};

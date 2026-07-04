@@ -4,16 +4,13 @@ import Sidebar from "./Sidebar";
 
 const FreelancerLayout = () => {
   return (
-    <div className="flex h-screen bg-gray-100">
-
-      {/* Sidebar */}
-      <Sidebar />
-
-      {/* Right Section */}
-      <div className="flex-1 overflow-y-auto p-8">
+    <div style={{display:"flex", minHeight:"100vh", backgroundColor:"#f3f4f6"}}>
+      <div style={{width:"256px", flexShrink:0, position:"fixed", left:0, top:0, height:"100vh", zIndex:50, overflowY:"auto"}}>
+        <Sidebar />
+      </div>
+      <div style={{marginLeft:"256px", flex:1, minHeight:"100vh", overflowY:"auto"}}>
         <Outlet />
       </div>
-
     </div>
   );
 };

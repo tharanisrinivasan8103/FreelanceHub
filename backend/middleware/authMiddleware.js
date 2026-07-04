@@ -4,7 +4,7 @@ require("dotenv").config();
 module.exports = (req, res, next) => {
   try {
     const authHeader = req.headers.authorization;
-
+    console.log("Auth Middleware - Authorization Header:", authHeader);
     if (!authHeader) {
       return res.status(401).json({
         message: "Access denied. No token provided",

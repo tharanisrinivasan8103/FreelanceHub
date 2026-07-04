@@ -7,7 +7,7 @@ exports.getAllUsers = (req, res) => {
 
 db.query(
 
-"SELECT id, name, email, role FROM users",
+"SELECT id, name, email, role, created_at FROM users",
 
 (err, result) => {
 

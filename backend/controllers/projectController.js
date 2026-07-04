@@ -31,11 +31,10 @@ exports.createProject = (req, res) => {
 };
 
 // ===============================
-// GET CLIENT PROJECTS
+// GET PROJECTS FOR LOGGED-IN CLIENT
 // ===============================
 exports.getClientProjects = (req, res) => {
   const clientId = req.user.id;
-
   db.query(
     "SELECT * FROM projects WHERE client_id = ? ORDER BY id DESC",
     [clientId],
@@ -50,20 +49,19 @@ exports.getClientProjects = (req, res) => {
 };
 
 // ===============================
-// GET ALL PROJECTS
+// GET ALL PROJECTS (Freelancer browse)
 // ===============================
 exports.getAllProjects = (req, res) => {
-  // ✅ proposal count JOIN பண்றோம்
   const query = `
-    SELECT 
-      p.*,
-      COUNT(pr.id) AS proposalsCount
+    SELECT p.*,
+           u.name AS client_name,
+           COUNT(pr.id) AS proposals_count
     FROM projects p
-    LEFT JOIN proposals pr ON p.id = pr.project_id
+    LEFT JOIN users u ON p.client_id = u.id
+    LEFT JOIN proposals pr ON pr.project_id = p.id
     GROUP BY p.id
     ORDER BY p.id DESC
   `;
-
   db.query(query, (err, results) => {
     if (err) {
       console.error("Error fetching projects:", err);
@@ -75,7 +73,7 @@ exports.getAllProjects = (req, res) => {
 
 // ===============================
 // FREELANCER DASHBOARD
-// ✅ FIX: pr.bid also fetch பண்றோம்
+// ✅ FIXED: returns correct proposal_status and bid from DB in real-time
 // ===============================
 exports.getFreelancerDashboard = (req, res) => {
   const freelancerId = req.user.id;
@@ -84,60 +82,65 @@ exports.getFreelancerDashboard = (req, res) => {
     return res.status(401).json({ message: "Unauthorized" });
   }
 
-  const proposalCountQuery = `
-    SELECT COUNT(*) AS totalProposals
-    FROM proposals
-    WHERE freelancer_id = ?
-  `;
+  // Step 1: total proposals count
+  db.query(
+    "SELECT COUNT(*) AS totalProposals FROM proposals WHERE freelancer_id = ?",
+    [freelancerId],
+    (err, proposalResult) => {
+      if (err) return res.status(500).json({ message: "Server error" });
 
-  db.query(proposalCountQuery, [freelancerId], (err, proposalResult) => {
-    if (err) {
-      console.error("Proposal Count Error:", err);
-      return res.status(500).json({ message: "Server error" });
+      const totalProposals = proposalResult[0]?.totalProposals || 0;
+
+      // Step 2: all projects this freelancer applied to — fresh status every time
+      db.query(
+        `SELECT
+           p.id,
+           p.title,
+           p.description,
+           p.budget,
+           p.category,
+           p.client_id,
+           p.deadline,
+           pr.id        AS proposal_id,
+           pr.bid       AS my_bid,
+           pr.status    AS proposal_status
+         FROM projects p
+         INNER JOIN proposals pr ON p.id = pr.project_id
+         WHERE pr.freelancer_id = ?
+         ORDER BY p.id DESC`,
+        [freelancerId],
+        (err, projectResult) => {
+          if (err) return res.status(500).json({ message: "Server error" });
+
+          res.status(200).json({
+            activeProjects:   (projectResult || []).length,
+            pendingProposals: totalProposals,
+            projects:         projectResult || []
+          });
+        }
+      );
     }
-
-    const totalProposals = proposalResult[0]?.totalProposals || 0;
-
-    // ✅ pr.bid, pr.status also include பண்றோம்
-    const projectQuery = `
-      SELECT 
-        p.id, p.title, p.description, p.budget, p.category, p.client_id,
-        pr.bid        AS my_bid,
-        pr.status     AS proposal_status
-      FROM projects p
-      INNER JOIN proposals pr ON p.id = pr.project_id
-      WHERE pr.freelancer_id = ?
-      ORDER BY p.id DESC
-    `;
-
-    db.query(projectQuery, [freelancerId], (err, projectResult) => {
-      if (err) {
-        console.error("Project Fetch Error:", err);
-        return res.status(500).json({ message: "Server error" });
-      }
-
-      const projects = projectResult || [];
-
-      res.status(200).json({
-        activeProjects: projects.length,
-        pendingProposals: totalProposals,
-        projects: projects
-      });
-    });
-  });
+  );
 };
 
 // ===============================
-// DELETE PROJECT (Admin)
+// DELETE PROJECT (Admin / Client)
 // ===============================
 exports.deleteProject = (req, res) => {
-  const project_id = req.params.id;
-  // Delete proposals first, then project
-  db.query("DELETE FROM proposals WHERE project_id = ?", [project_id], (err) => {
-    if (err) return res.status(500).json({ message: "Server Error" });
-    db.query("DELETE FROM projects WHERE id = ?", [project_id], (err2) => {
-      if (err2) return res.status(500).json({ message: "Server Error" });
-      res.status(200).json({ message: "Project deleted successfully" });
-    });
+  const { id } = req.params;
+  const userId = req.user.id;
+  const userRole = req.user.role;
+
+  const query = userRole === "admin"
+    ? "DELETE FROM projects WHERE id = ?"
+    : "DELETE FROM projects WHERE id = ? AND client_id = ?";
+
+  const params = userRole === "admin" ? [id] : [id, userId];
+
+  db.query(query, params, (err, result) => {
+    if (err) return res.status(500).json({ message: "Server error" });
+    if (result.affectedRows === 0)
+      return res.status(404).json({ message: "Project not found or unauthorized" });
+    res.json({ message: "Project deleted successfully" });
   });
 };

@@ -1,316 +1,478 @@
 import React, { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
-import {
-  BarChart,
-  Bar,
-  XAxis,
-  YAxis,
-  CartesianGrid,
-  Tooltip,
-  ResponsiveContainer,
-  PieChart,
-  Pie,
-  Cell,
-  Legend,
-  LineChart,
-  Line,
-} from "recharts";
 import API from "../../api/api";
+
+const T = {
+  accent:"#14B8A6", accent2:"#0F766E", text:"#1E293B", muted:"#64748B",
+  border:"#E2E8F0", card:"#FFFFFF", pageBg:"#F1F5F9",
+  success:"#10B981", warn:"#F59E0B", danger:"#EF4444", indigo:"#6366F1", blue:"#3B82F6",
+};
+const fonts = `https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Plus+Jakarta+Sans:wght@500;600;700&display=swap`;
+
+const Icon = ({ d, size=18, color=T.accent, stroke=1.8 }) => (
+  <svg width={size} height={size} fill="none" viewBox="0 0 24 24"
+    stroke={color} strokeWidth={stroke} strokeLinecap="round" strokeLinejoin="round">
+    <path d={d}/>
+  </svg>
+);
+
+const StatCard = ({ label, value, color, icon }) => (
+  <div style={{ background:T.card, borderRadius:14, padding:"22px 20px", border:`1px solid ${T.border}`,
+    boxShadow:"0 1px 3px rgba(0,0,0,0.05)", flex:1, position:"relative", overflow:"hidden", minWidth:160 }}>
+    <div style={{ position:"absolute", top:-16, right:-16, width:64, height:64,
+      borderRadius:"50%", background:color+"18" }}/>
+    <div style={{ width:36, height:36, borderRadius:9, background:color+"1C",
+      display:"flex", alignItems:"center", justifyContent:"center", marginBottom:12 }}>
+      <Icon d={icon} color={color} size={17}/>
+    </div>
+    <div style={{ fontSize:28, fontWeight:700, color:T.text, lineHeight:1,
+      fontFamily:"'Plus Jakarta Sans',sans-serif" }}>{value}</div>
+    <div style={{ fontSize:12, color:T.muted, marginTop:5, fontWeight:500 }}>{label}</div>
+  </div>
+);
 
 const AdminDashboard = () => {
   const navigate = useNavigate();
-  const [stats, setStats] = useState(null);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState("");
+  const [stats,    setStats]    = useState({ clients:0, freelancers:0, projects:0, proposals:0 });
+  const [projects, setProjects] = useState([]);
+  const [users,    setUsers]    = useState([]);
+  const [loading,  setLoading]  = useState(true);
+  const [pdfLoading,      setPdfLoading]      = useState(false);
+  const [loginPdfLoading, setLoginPdfLoading] = useState(false);
 
   useEffect(() => {
-    const fetchStats = async () => {
+    (async () => {
       try {
-        const res = await API.get("/admin/dashboard");
-        setStats(res.data);
-      } catch (err) {
-        setError("Failed to load dashboard data");
-        console.error(err);
-      } finally {
-        setLoading(false);
-      }
-    };
-    fetchStats();
+        const [usersRes, projRes] = await Promise.all([
+          API.get("/users"),
+          API.get("/projects"),
+        ]);
+        const u = usersRes.data || [];
+        const p = projRes.data  || [];
+        setUsers(u);
+
+        let totalProposals = 0;
+        const updatedProjects = await Promise.all(
+          p.map(async (proj) => {
+            try {
+              const propRes = await API.get(`/proposals/project/${proj.id}`);
+              const count   = (propRes.data || []).length;
+              totalProposals += count;
+              return { ...proj, proposal_count: count };
+            } catch {
+              return { ...proj, proposal_count: 0 };
+            }
+          })
+        );
+        setProjects(updatedProjects);
+        setStats({
+          clients:     u.filter(x => x.role === "client").length,
+          freelancers: u.filter(x => x.role === "freelancer").length,
+          projects:    p.length,
+          proposals:   totalProposals,
+        });
+      } catch {}
+      setLoading(false);
+    })();
   }, []);
 
-  if (loading) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="text-center">
-          <div className="w-12 h-12 border-4 border-teal-500 border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-          <p className="text-gray-500 text-lg">Loading dashboard...</p>
-        </div>
-      </div>
-    );
-  }
+  // Load jsPDF from CDN
+  const loadJsPDF = () => new Promise((resolve, reject) => {
+    if (window.jspdf) { resolve(window.jspdf.jsPDF); return; }
+    const s = document.createElement("script");
+    s.src = "https://cdnjs.cloudflare.com/ajax/libs/jspdf/2.5.1/jspdf.umd.min.js";
+    s.onload  = () => resolve(window.jspdf.jsPDF);
+    s.onerror = reject;
+    document.head.appendChild(s);
+  });
 
-  if (error) {
-    return (
-      <div className="flex items-center justify-center min-h-screen bg-gray-50">
-        <div className="bg-red-100 text-red-600 px-8 py-6 rounded-xl shadow text-center">
-          <p className="text-2xl mb-2">⚠️</p>
-          <p className="font-semibold">{error}</p>
-          <button
-            onClick={() => window.location.reload()}
-            className="mt-4 bg-red-500 text-white px-4 py-2 rounded-lg hover:bg-red-600 transition"
-          >
-            Retry
-          </button>
-        </div>
-      </div>
-    );
-  }
+  // ── FULL REPORT ────────────────────────────────────────────────
+  const generateFullReport = async () => {
+    setPdfLoading(true);
+    try {
+      const jsPDF = await loadJsPDF();
+      const doc   = new jsPDF();
+      const date  = new Date().toLocaleDateString("en-IN", { day:"2-digit", month:"long", year:"numeric" });
 
-  const totalUsers = (stats.totalFreelancers || 0) + (stats.totalClients || 0);
+      // Header bar
+      doc.setFillColor(15, 118, 110);
+      doc.rect(0, 0, 210, 40, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(20); doc.setFont("helvetica", "bold");
+      doc.text("Freelancing Project Platform", 14, 17);
+      doc.setFontSize(11); doc.setFont("helvetica", "normal");
+      doc.text("Full Platform Report", 14, 27);
+      doc.text(`Generated: ${date}`, 14, 35);
 
-  // PIE chart data for user roles
-  const userRoleData = [
-    { name: "Freelancers", value: stats.totalFreelancers || 0 },
-    { name: "Clients", value: stats.totalClients || 0 },
-  ];
+      // Stats section
+      doc.setTextColor(30, 41, 59);
+      doc.setFontSize(13); doc.setFont("helvetica", "bold");
+      doc.text("Platform Statistics", 14, 55);
+      doc.setDrawColor(226, 232, 240); doc.setLineWidth(0.3);
+      doc.line(14, 58, 196, 58);
 
-  // BAR chart data for projects by status
-  const projectStatusData = [
-    { name: "Open", count: stats.openProjects || 0 },
-    { name: "In Progress", count: stats.inProgressProjects || 0 },
-    { name: "Completed", count: stats.completedProjects || 0 },
-  ];
+      const statItems = [
+        { label:"Total Clients",     value: stats.clients },
+        { label:"Total Freelancers", value: stats.freelancers },
+        { label:"Total Projects",    value: stats.projects },
+        { label:"Total Proposals",   value: stats.proposals },
+      ];
+      let sx = 14;
+      statItems.forEach(s => {
+        doc.setFillColor(240, 253, 250);
+        doc.roundedRect(sx, 62, 42, 20, 2, 2, "F");
+        doc.setTextColor(15, 118, 110);
+        doc.setFontSize(16); doc.setFont("helvetica", "bold");
+        doc.text(String(s.value), sx + 21, 72, { align:"center" });
+        doc.setTextColor(100, 116, 139);
+        doc.setFontSize(7); doc.setFont("helvetica", "normal");
+        doc.text(s.label, sx + 21, 79, { align:"center" });
+        sx += 46;
+      });
 
-  // BAR chart for proposals by status
-  const proposalStatusData = [
-    { name: "Pending", count: stats.pendingProposals || 0 },
-    { name: "Accepted", count: stats.acceptedProposals || 0 },
-    { name: "Rejected", count: stats.rejectedProposals || 0 },
-  ];
+      // Registered Users table
+      doc.setTextColor(30, 41, 59);
+      doc.setFontSize(13); doc.setFont("helvetica", "bold");
+      doc.text("Registered Users", 14, 100);
+      doc.setDrawColor(226, 232, 240);
+      doc.line(14, 103, 196, 103);
 
-  // LINE chart for monthly registrations
-  const monthlyData = stats.monthlyRegistrations || [];
+      // Table header
+      doc.setFillColor(15, 118, 110);
+      doc.rect(14, 106, 182, 8, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(8); doc.setFont("helvetica", "bold");
+      doc.text("#",    18,  112);
+      doc.text("Name", 28,  112);
+      doc.text("Email", 80, 112);
+      doc.text("Role",  150, 112);
+      doc.text("Joined",170, 112);
 
-  const PIE_COLORS = ["#14b8a6", "#6366f1"];
-  const BAR_COLORS = ["#14b8a6", "#f59e0b", "#6366f1"];
+      let y = 122;
+      doc.setFont("helvetica", "normal");
+      users.slice(0, 20).forEach((u, i) => {
+        if (y > 270) { doc.addPage(); y = 20; }
+        if (i % 2 === 0) {
+          doc.setFillColor(248, 250, 252);
+          doc.rect(14, y - 5, 182, 8, "F");
+        }
+        doc.setTextColor(30, 41, 59);
+        doc.text(String(i + 1), 18, y);
+        doc.text((u.name  || "").slice(0, 22), 28,  y);
+        doc.text((u.email || "").slice(0, 30), 80,  y);
 
-  const statCards = [
-    {
-      label: "Total Users",
-      value: totalUsers,
-      icon: "👥",
-      color: "bg-teal-500",
-      sub: `${stats.totalFreelancers || 0} Freelancers · ${stats.totalClients || 0} Clients`,
-      path: "/admin/users",
-    },
-    {
-      label: "Total Projects",
-      value: stats.totalProjects || 0,
-      icon: "📁",
-      color: "bg-indigo-500",
-      sub: `${stats.openProjects || 0} Open · ${stats.completedProjects || 0} Completed`,
-      path: "/admin/projects",
-    },
-    {
-      label: "Total Proposals",
-      value: stats.totalProposals || 0,
-      icon: "📄",
-      color: "bg-amber-500",
-      sub: `${stats.acceptedProposals || 0} Accepted · ${stats.pendingProposals || 0} Pending`,
-      path: "/admin/projects",
-    },
-    {
-      label: "Total Submissions",
-      value: stats.totalSubmissions || 0,
-      icon: "📤",
-      color: "bg-purple-500",
-      sub: `${stats.approvedSubmissions || 0} Approved · ${stats.pendingSubmissions || 0} Submitted`,
-      path: "/admin/projects",
-    },
-  ];
+        // Role color
+        if (u.role === "freelancer")      doc.setTextColor(15, 118, 110);
+        else if (u.role === "client")     doc.setTextColor(37, 99, 235);
+        else                              doc.setTextColor(100, 116, 139);
+        doc.text((u.role || "").charAt(0).toUpperCase() + (u.role || "").slice(1), 150, y);
+
+        doc.setTextColor(100, 116, 139);
+        doc.text(
+          u.created_at ? new Date(u.created_at).toLocaleDateString("en-IN") : "—",
+          170, y
+        );
+        y += 9;
+      });
+
+      // Projects page
+      doc.addPage();
+      doc.setFillColor(15, 118, 110);
+      doc.rect(0, 0, 210, 14, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(9); doc.setFont("helvetica", "bold");
+      doc.text("Freelancing Project Platform — Project Report", 14, 9);
+
+      doc.setTextColor(30, 41, 59);
+      doc.setFontSize(13); doc.setFont("helvetica", "bold");
+      doc.text("All Projects", 14, 26);
+      doc.setDrawColor(226, 232, 240);
+      doc.line(14, 29, 196, 29);
+
+      // Table header
+      doc.setFillColor(15, 118, 110);
+      doc.rect(14, 32, 182, 8, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(8); doc.setFont("helvetica", "bold");
+      doc.text("#",        18,  38);
+      doc.text("Title",    28,  38);
+      doc.text("Budget",   110, 38);
+      doc.text("Status",   140, 38);
+      doc.text("Deadline", 168, 38);
+
+      y = 50;
+      doc.setFont("helvetica", "normal");
+      projects.forEach((p, i) => {
+        if (y > 270) { doc.addPage(); y = 20; }
+        if (i % 2 === 0) {
+          doc.setFillColor(248, 250, 252);
+          doc.rect(14, y - 5, 182, 8, "F");
+        }
+        doc.setTextColor(30, 41, 59);
+        doc.text(String(i + 1), 18, y);
+        doc.text((p.title || "").slice(0, 30), 28, y);
+        doc.text(`Rs.${Number(p.budget || 0).toLocaleString()}`, 110, y);
+
+        // Status color
+        if ((p.status || "open") === "open") doc.setTextColor(16, 185, 129);
+        else                                 doc.setTextColor(220, 38, 38);
+        doc.text(
+          (p.status || "open").charAt(0).toUpperCase() + (p.status || "open").slice(1),
+          140, y
+        );
+
+        doc.setTextColor(100, 116, 139);
+        doc.text(
+          p.deadline ? new Date(p.deadline).toLocaleDateString("en-IN") : "—",
+          168, y
+        );
+        y += 9;
+      });
+
+      // Footer
+      doc.setFontSize(8); doc.setTextColor(148, 163, 184);
+      doc.text(`© ${new Date().getFullYear()} Freelancing Project Platform`, 14, 285);
+
+      doc.save(`Platform_FullReport_${new Date().toISOString().slice(0, 10)}.pdf`);
+    } catch (e) {
+      alert("Error generating PDF. Please try again.");
+    }
+    setPdfLoading(false);
+  };
+
+  // ── TODAY'S LOGIN REPORT ───────────────────────────────────────
+  const generateLoginReport = async () => {
+    setLoginPdfLoading(true);
+    try {
+      const jsPDF    = await loadJsPDF();
+      const doc      = new jsPDF();
+      const today    = new Date();
+      const todayStr = today.toISOString().slice(0, 10);
+      const dateStr  = today.toLocaleDateString("en-IN", { day:"2-digit", month:"long", year:"numeric" });
+
+      // Header bar
+      doc.setFillColor(15, 118, 110);
+      doc.rect(0, 0, 210, 40, "F");
+      doc.setTextColor(255, 255, 255);
+      doc.setFontSize(20); doc.setFont("helvetica", "bold");
+      doc.text("Freelancing Project Platform", 14, 17);
+      doc.setFontSize(11); doc.setFont("helvetica", "normal");
+      doc.text("Today's Login Report", 14, 27);
+      doc.text(`Date: ${dateStr}`, 14, 35);
+
+      const todayUsers = users.filter(u => (u.created_at || "").slice(0, 10) === todayStr);
+
+      const summaryItems = [
+        { label:"Total Users",      value: users.length },
+        { label:"Freelancers",      value: users.filter(u => u.role === "freelancer").length },
+        { label:"Clients",          value: users.filter(u => u.role === "client").length },
+        { label:"Registered Today", value: todayUsers.length },
+      ];
+
+      doc.setTextColor(30, 41, 59);
+      doc.setFontSize(13); doc.setFont("helvetica", "bold");
+      doc.text("User Summary", 14, 55);
+      doc.setDrawColor(226, 232, 240);
+      doc.line(14, 58, 196, 58);
+
+      let sx2 = 14;
+      summaryItems.forEach(s => {
+        doc.setFillColor(240, 253, 250);
+        doc.roundedRect(sx2, 62, 42, 22, 2, 2, "F");
+        doc.setTextColor(15, 118, 110);
+        doc.setFontSize(18); doc.setFont("helvetica", "bold");
+        doc.text(String(s.value), sx2 + 21, 73, { align:"center" });
+        doc.setTextColor(100, 116, 139);
+        doc.setFontSize(7); doc.setFont("helvetica", "normal");
+        doc.text(s.label, sx2 + 21, 80, { align:"center" });
+        sx2 += 46;
+      });
+
+      // New users today
+      doc.setTextColor(30, 41, 59);
+      doc.setFontSize(13); doc.setFont("helvetica", "bold");
+      doc.text(`New Users Today (${todayUsers.length})`, 14, 100);
+      doc.setDrawColor(226, 232, 240);
+      doc.line(14, 103, 196, 103);
+
+      if (todayUsers.length === 0) {
+        doc.setFillColor(248, 250, 252);
+        doc.rect(14, 107, 182, 14, "F");
+        doc.setTextColor(148, 163, 184);
+        doc.setFontSize(10); doc.setFont("helvetica", "normal");
+        doc.text("No new users registered today.", 105, 116, { align:"center" });
+      } else {
+        // Table header
+        doc.setFillColor(15, 118, 110);
+        doc.rect(14, 106, 182, 8, "F");
+        doc.setTextColor(255, 255, 255);
+        doc.setFontSize(8); doc.setFont("helvetica", "bold");
+        doc.text("#",    18,  112);
+        doc.text("Name", 28,  112);
+        doc.text("Email", 80, 112);
+        doc.text("Role",  155, 112);
+
+        let y3 = 122;
+        doc.setFont("helvetica", "normal");
+        todayUsers.forEach((u, i) => {
+          if (i % 2 === 0) {
+            doc.setFillColor(248, 250, 252);
+            doc.rect(14, y3 - 5, 182, 8, "F");
+          }
+          doc.setTextColor(30, 41, 59);
+          doc.text(String(i + 1), 18, y3);
+          doc.text((u.name  || "").slice(0, 22), 28,  y3);
+          doc.text((u.email || "").slice(0, 30), 80,  y3);
+          doc.setTextColor(15, 118, 110);
+          doc.text(
+            (u.role || "").charAt(0).toUpperCase() + (u.role || "").slice(1),
+            155, y3
+          );
+          y3 += 9;
+        });
+      }
+
+      // Footer
+      doc.setFontSize(8); doc.setTextColor(148, 163, 184);
+      doc.text(`© ${new Date().getFullYear()} Freelancing Project Platform`, 14, 285);
+
+      doc.save(`Platform_LoginReport_${todayStr}.pdf`);
+    } catch (e) {
+      alert("Error generating PDF. Please try again.");
+    }
+    setLoginPdfLoading(false);
+  };
 
   return (
-    <div className="bg-gray-50 min-h-screen p-8">
-      <div className="max-w-7xl mx-auto">
+    <div style={{ minHeight:"100vh", background:T.pageBg, fontFamily:"'Inter',sans-serif" }}>
+      <link href={fonts} rel="stylesheet"/>
+      <div style={{ maxWidth:1100, margin:"0 auto", padding:"32px 28px" }}>
 
-        {/* HEADER */}
-        <div className="mb-8">
-          <h1 className="text-3xl font-bold text-gray-800">Admin Dashboard</h1>
-          <p className="text-gray-500 mt-1">
-            Welcome back! Here is your platform overview.
-          </p>
+        {/* Header */}
+        <div style={{ marginBottom:28 }}>
+          <p style={{ fontSize:11, color:T.muted, letterSpacing:1.8, textTransform:"uppercase",
+            fontWeight:600, marginBottom:5 }}>Overview</p>
+          <h1 style={{ fontSize:24, fontFamily:"'Plus Jakarta Sans',sans-serif", fontWeight:700,
+            color:T.text, margin:0 }}>Admin Dashboard</h1>
+          <p style={{ color:T.muted, fontSize:13, marginTop:4 }}>Platform statistics and recent activity</p>
         </div>
 
-        {/* STAT CARDS */}
-        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-          {statCards.map((card, i) => (
-            <div
-              key={i}
-              onClick={() => navigate(card.path)}
-              className="bg-white rounded-2xl shadow-sm hover:shadow-md transition cursor-pointer p-6 border border-gray-100"
-            >
-              <div className="flex items-center justify-between mb-4">
-                <div className={"w-12 h-12 rounded-xl flex items-center justify-center text-2xl " + card.color}>
-                  {card.icon}
-                </div>
-                <span className="text-3xl font-bold text-gray-800">
-                  {card.value}
-                </span>
+        {/* Stat Cards */}
+        <div style={{ display:"flex", gap:14, marginBottom:28, flexWrap:"wrap" }}>
+          <StatCard label="Total Clients"     value={stats.clients}     color={T.blue}
+            icon="M17 20h5v-2a3 3 0 00-5.356-1.857M17 20H7m10 0v-2c0-.656-.126-1.283-.356-1.857M7 20H2v-2a3 3 0 015.356-1.857M7 20v-2c0-.656.126-1.283.356-1.857m0 0a5.002 5.002 0 019.288 0M15 7a3 3 0 11-6 0 3 3 0 016 0z"/>
+          <StatCard label="Total Freelancers" value={stats.freelancers} color={T.accent}
+            icon="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"/>
+          <StatCard label="Total Projects"    value={stats.projects}    color={T.indigo}
+            icon="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"/>
+          <StatCard label="Total Proposals"   value={stats.proposals}   color={T.warn}
+            icon="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"/>
+        </div>
+
+        {/* Projects Table */}
+        <div style={{ background:T.card, borderRadius:16, border:`1px solid ${T.border}`,
+          boxShadow:"0 1px 3px rgba(0,0,0,0.05)", overflow:"hidden" }}>
+
+          {/* Table Header */}
+          <div style={{ padding:"18px 24px", borderBottom:`1px solid ${T.border}`,
+            display:"flex", justifyContent:"space-between", alignItems:"center" }}>
+            <div style={{ display:"flex", alignItems:"center", gap:10 }}>
+              <div style={{ width:32, height:32, borderRadius:8, background:`${T.accent}1A`,
+                display:"flex", alignItems:"center", justifyContent:"center" }}>
+                <Icon d="M3 7v10a2 2 0 002 2h14a2 2 0 002-2V9a2 2 0 00-2-2h-6l-2-2H5a2 2 0 00-2 2z"
+                  size={15} color={T.accent}/>
               </div>
-              <p className="text-gray-700 font-semibold mb-1">{card.label}</p>
-              <p className="text-gray-400 text-xs">{card.sub}</p>
+              <h2 style={{ margin:0, fontSize:14, fontWeight:600, color:T.text,
+                fontFamily:"'Plus Jakarta Sans',sans-serif" }}>Project Details</h2>
             </div>
-          ))}
-        </div>
+            <button onClick={() => navigate("/admin/projects")} style={{
+              fontSize:12, color:T.accent, background:"none", border:"none",
+              cursor:"pointer", fontWeight:600, fontFamily:"'Inter',sans-serif",
+              display:"flex", alignItems:"center", gap:4 }}>
+              View All <Icon d="M9 5l7 7-7 7" color={T.accent} size={12} stroke={2.5}/>
+            </button>
+          </div>
 
-        {/* CHARTS ROW 1 */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-
-          {/* PROJECT STATUS BAR CHART */}
-          <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
-            <h2 className="text-lg font-bold text-gray-800 mb-1">Projects by Status</h2>
-            <p className="text-gray-400 text-sm mb-6">Overview of all project statuses</p>
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={projectStatusData} barSize={50}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} />
-                <YAxis allowDecimals={false} axisLine={false} tickLine={false} />
-                <Tooltip
-                  contentStyle={{ borderRadius: "10px", border: "none", boxShadow: "0 4px 20px rgba(0,0,0,0.1)" }}
-                />
-                <Bar dataKey="count" radius={[6, 6, 0, 0]}>
-                  {projectStatusData.map((entry, index) => (
-                    <Cell key={index} fill={BAR_COLORS[index]} />
+          <div style={{ overflowX:"auto" }}>
+            <table style={{ width:"100%", borderCollapse:"collapse" }}>
+              <thead>
+                <tr style={{ background:"#F8FAFC" }}>
+                  {["Title","Status","Budget","Client","Proposals"].map(h => (
+                    <th key={h} style={{ padding:"11px 20px", textAlign:"left", fontSize:11,
+                      fontWeight:600, color:T.muted, textTransform:"uppercase", letterSpacing:.8,
+                      borderBottom:`1px solid ${T.border}` }}>{h}</th>
                   ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
+                </tr>
+              </thead>
+              <tbody>
+                {loading ? (
+                  <tr><td colSpan={5} style={{ padding:40, textAlign:"center", color:T.muted }}>
+                    Loading...
+                  </td></tr>
+                ) : projects.length === 0 ? (
+                  <tr><td colSpan={5} style={{ padding:40, textAlign:"center", color:T.muted }}>
+                    No projects yet
+                  </td></tr>
+                ) : projects.map((p, i) => (
+                  <tr key={p.id}
+                    style={{ borderBottom:i < projects.length-1 ? `1px solid ${T.border}` : "none",
+                      transition:"background .15s" }}
+                    onMouseEnter={e => e.currentTarget.style.background = "#F8FAFC"}
+                    onMouseLeave={e => e.currentTarget.style.background = "transparent"}>
+                    <td style={{ padding:"14px 20px", fontSize:13, fontWeight:600, color:T.text }}>
+                      {p.title}
+                    </td>
+                    <td style={{ padding:"14px 20px" }}>
+                      <span style={{ padding:"3px 10px", borderRadius:20, fontSize:10, fontWeight:600,
+                        background: p.status === "open" ? "#D1FAE5" : "#FEE2E2",
+                        color:      p.status === "open" ? T.success  : T.danger }}>
+                        {(p.status || "open").charAt(0).toUpperCase() + (p.status || "open").slice(1)}
+                      </span>
+                    </td>
+                    <td style={{ padding:"14px 20px", fontSize:13, fontWeight:500, color:T.text }}>
+                      ₹{Number(p.budget).toLocaleString()}
+                    </td>
+                    <td style={{ padding:"14px 20px", fontSize:13, color:T.muted }}>
+                      {p.client_name || "—"}
+                    </td>
+                    <td style={{ padding:"14px 20px", fontSize:13, color:T.muted }}>
+                      {p.proposal_count || 0}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
           </div>
 
-          {/* USER ROLE PIE CHART */}
-          <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
-            <h2 className="text-lg font-bold text-gray-800 mb-1">User Distribution</h2>
-            <p className="text-gray-400 text-sm mb-6">Freelancers vs Clients</p>
-            <ResponsiveContainer width="100%" height={260}>
-              <PieChart>
-                <Pie
-                  data={userRoleData}
-                  cx="50%"
-                  cy="50%"
-                  innerRadius={70}
-                  outerRadius={110}
-                  paddingAngle={4}
-                  dataKey="value"
-                >
-                  {userRoleData.map((entry, index) => (
-                    <Cell key={index} fill={PIE_COLORS[index]} />
-                  ))}
-                </Pie>
-                <Tooltip
-                  contentStyle={{ borderRadius: "10px", border: "none", boxShadow: "0 4px 20px rgba(0,0,0,0.1)" }}
-                />
-                <Legend />
-              </PieChart>
-            </ResponsiveContainer>
-          </div>
-        </div>
+          {/* PDF Buttons */}
+          <div style={{ padding:"16px 20px", borderTop:`1px solid ${T.border}`,
+            display:"flex", gap:10, flexWrap:"wrap" }}>
+            <button onClick={generateFullReport} disabled={pdfLoading} style={{
+              display:"flex", alignItems:"center", gap:7, padding:"10px 20px", borderRadius:9,
+              background: pdfLoading ? T.muted : `linear-gradient(135deg,${T.accent},${T.accent2})`,
+              color:"#fff", border:"none", fontSize:13, fontWeight:600,
+              cursor: pdfLoading ? "not-allowed" : "pointer",
+              fontFamily:"'Inter',sans-serif",
+              boxShadow:`0 3px 10px ${T.accent}30`, transition:"all .2s" }}>
+              <Icon d="M7 21h10a2 2 0 002-2V9.414a1 1 0 00-.293-.707l-5.414-5.414A1 1 0 0012.586 3H7a2 2 0 00-2 2v14a2 2 0 002 2z"
+                color="#fff" size={14}/>
+              {pdfLoading ? "Generating..." : "Generate Full PDF Report"}
+            </button>
 
-        {/* CHARTS ROW 2 */}
-        <div className="grid grid-cols-1 lg:grid-cols-2 gap-6 mb-6">
-
-          {/* PROPOSAL STATUS BAR CHART */}
-          <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
-            <h2 className="text-lg font-bold text-gray-800 mb-1">Proposals by Status</h2>
-            <p className="text-gray-400 text-sm mb-6">Overview of all proposal statuses</p>
-            <ResponsiveContainer width="100%" height={260}>
-              <BarChart data={proposalStatusData} barSize={50}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="name" axisLine={false} tickLine={false} />
-                <YAxis allowDecimals={false} axisLine={false} tickLine={false} />
-                <Tooltip
-                  contentStyle={{ borderRadius: "10px", border: "none", boxShadow: "0 4px 20px rgba(0,0,0,0.1)" }}
-                />
-                <Bar dataKey="count" radius={[6, 6, 0, 0]}>
-                  {proposalStatusData.map((entry, index) => (
-                    <Cell key={index} fill={BAR_COLORS[index]} />
-                  ))}
-                </Bar>
-              </BarChart>
-            </ResponsiveContainer>
-          </div>
-
-          {/* MONTHLY REGISTRATIONS LINE CHART */}
-          <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100">
-            <h2 className="text-lg font-bold text-gray-800 mb-1">Monthly Registrations</h2>
-            <p className="text-gray-400 text-sm mb-6">New users per month</p>
-            <ResponsiveContainer width="100%" height={260}>
-              <LineChart data={monthlyData}>
-                <CartesianGrid strokeDasharray="3 3" vertical={false} />
-                <XAxis dataKey="month" axisLine={false} tickLine={false} />
-                <YAxis allowDecimals={false} axisLine={false} tickLine={false} />
-                <Tooltip
-                  contentStyle={{ borderRadius: "10px", border: "none", boxShadow: "0 4px 20px rgba(0,0,0,0.1)" }}
-                />
-                <Line
-                  type="monotone"
-                  dataKey="count"
-                  stroke="#14b8a6"
-                  strokeWidth={3}
-                  dot={{ fill: "#14b8a6", r: 5 }}
-                  activeDot={{ r: 7 }}
-                />
-              </LineChart>
-            </ResponsiveContainer>
+            <button onClick={generateLoginReport} disabled={loginPdfLoading} style={{
+              display:"flex", alignItems:"center", gap:7, padding:"10px 20px", borderRadius:9,
+              background: loginPdfLoading ? "#E2E8F0" : `${T.accent}12`,
+              color:  loginPdfLoading ? T.muted : T.accent,
+              border: `1px solid ${loginPdfLoading ? T.border : T.accent + "25"}`,
+              fontSize:13, fontWeight:600,
+              cursor: loginPdfLoading ? "not-allowed" : "pointer",
+              fontFamily:"'Inter',sans-serif", transition:"all .2s" }}>
+              <Icon d="M9 17v-2m3 2v-4m3 4v-6m2 10H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                color={loginPdfLoading ? T.muted : T.accent} size={14}/>
+              {loginPdfLoading ? "Generating..." : "Generate Today's Login Report"}
+            </button>
           </div>
         </div>
-
-        {/* SUBMISSION STATS */}
-        <div className="bg-white rounded-2xl shadow-sm p-6 border border-gray-100 mb-6">
-          <h2 className="text-lg font-bold text-gray-800 mb-6">Submission Overview</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-3 gap-6">
-            <div className="bg-blue-50 rounded-xl p-5 text-center">
-              <p className="text-4xl font-bold text-blue-600 mb-1">
-                {stats.totalSubmissions || 0}
-              </p>
-              <p className="text-gray-600 font-medium">Total Submissions</p>
-            </div>
-            <div className="bg-green-50 rounded-xl p-5 text-center">
-              <p className="text-4xl font-bold text-green-600 mb-1">
-                {stats.approvedSubmissions || 0}
-              </p>
-              <p className="text-gray-600 font-medium">Approved</p>
-            </div>
-            <div className="bg-orange-50 rounded-xl p-5 text-center">
-              <p className="text-4xl font-bold text-orange-500 mb-1">
-                {stats.revisionSubmissions || 0}
-              </p>
-              <p className="text-gray-600 font-medium">Revision Requested</p>
-            </div>
-          </div>
-        </div>
-
-        {/* QUICK LINKS */}
-        <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          <button
-            onClick={() => navigate("/admin/users")}
-            className="bg-teal-600 hover:bg-teal-700 text-white py-4 rounded-2xl font-semibold transition shadow-sm"
-          >
-            👥 Manage Users
-          </button>
-          <button
-            onClick={() => navigate("/admin/projects")}
-            className="bg-indigo-600 hover:bg-indigo-700 text-white py-4 rounded-2xl font-semibold transition shadow-sm"
-          >
-            📁 Manage Projects
-          </button>
-          <button
-            onClick={() => navigate("/admin/reports")}
-            className="bg-amber-500 hover:bg-amber-600 text-white py-4 rounded-2xl font-semibold transition shadow-sm"
-          >
-            📈 View Reports
-          </button>
-        </div>
-
       </div>
     </div>
   );

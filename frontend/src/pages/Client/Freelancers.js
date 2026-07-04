@@ -1,84 +1,98 @@
 import React, { useEffect, useState } from "react";
+import { useNavigate } from "react-router-dom";
+import { getFreelancers } from "../../api/api";
 import API from "../../api/api";
 
 const Freelancers = () => {
+  const navigate = useNavigate();
   const [freelancers, setFreelancers] = useState([]);
-  const [loading, setLoading] = useState(true);
+  const [search, setSearch]           = useState("");
+  const [loading, setLoading]         = useState(true);
 
-  // =====================================
-  // FETCH FREELANCERS
-  // =====================================
-  const fetchFreelancers = async () => {
+  useEffect(() => {
+    getFreelancers()
+      .then(r => { setFreelancers(r.data || []); setLoading(false); })
+      .catch(() => setLoading(false));
+  }, []);
+
+  const filtered = freelancers.filter(f =>
+    f.name?.toLowerCase().includes(search.toLowerCase()) ||
+    f.email?.toLowerCase().includes(search.toLowerCase())
+  );
+
+  const sendMessage = async (freelancer) => {
     try {
-      const res = await API.get("/users/freelancers");
-      setFreelancers(res.data);
+      await API.post("/messages", {
+        receiver_id: freelancer.id,
+        content: `Hi ${freelancer.name}! I'd like to connect with you.`,
+      });
+      navigate("/client/messages");
     } catch (err) {
-      console.log(err);
-    } finally {
-      setLoading(false);
+      console.error(err);
     }
   };
 
-  useEffect(() => {
-    fetchFreelancers();
-  }, []);
+  if (loading) return (
+    <div style={{ background:"#f8fafc", minHeight:"100vh", display:"flex", alignItems:"center", justifyContent:"center" }}>
+      <span style={{ color:"#0f766e", fontWeight:"600" }}>Loading...</span>
+    </div>
+  );
 
-  // =====================================
-  // INVITE FUNCTION
-  // =====================================
-  const handleInvite = (freelancer) => {
-    alert(`Invitation sent to ${freelancer.name}`);
-    // Future: API call for invite
-  };
+  const avatarColors = ["#0f766e","#0891b2","#7c3aed","#be185d","#b45309","#166534"];
 
   return (
-    <div className="p-8">
-      <h2 className="text-2xl font-bold mb-6">
-        Browse Freelancers
-      </h2>
+    <div style={{ background:"#f8fafc", minHeight:"100vh", padding:"32px", fontFamily:"'Segoe UI',sans-serif" }}>
 
-      {/* LOADING */}
-      {loading && <p>Loading freelancers...</p>}
+      <h1 style={{ fontSize:"24px", fontWeight:"700", color:"#0f172a", margin:"0 0 4px" }}>Browse Freelancers</h1>
+      <p style={{ color:"#64748b", fontSize:"13px", marginBottom:"24px" }}>Connect with skilled freelancers for your projects</p>
 
-      {/* EMPTY */}
-      {!loading && freelancers.length === 0 && (
-        <p>No Freelancers Found</p>
-      )}
+      {/* SEARCH */}
+      <div style={{ position:"relative", maxWidth:"440px", marginBottom:"28px" }}>
+        <span style={{ position:"absolute", left:"14px", top:"50%", transform:"translateY(-50%)", color:"#94a3b8", fontSize:"16px" }}>🔍</span>
+        <input
+          type="text"
+          placeholder="Search freelancers..."
+          value={search}
+          onChange={e => setSearch(e.target.value)}
+          style={{ width:"100%", padding:"11px 16px 11px 40px", border:"1px solid #e2e8f0", borderRadius:"10px", fontSize:"13px", outline:"none", background:"white", color:"#0f172a", boxSizing:"border-box", boxShadow:"0 1px 3px rgba(0,0,0,0.04)" }}
+        />
+      </div>
 
       {/* GRID */}
-      <div className="grid md:grid-cols-2 lg:grid-cols-3 gap-6">
-        {freelancers.map((user) => (
-          <div
-            key={user.id}
-            className="bg-white p-6 rounded-xl shadow hover:shadow-lg transition"
-          >
-            {/* PROFILE ICON */}
-            <div className="flex items-center gap-4 mb-4">
-              <div className="w-12 h-12 bg-blue-500 text-white flex items-center justify-center rounded-full text-lg font-bold">
-                {user.name?.charAt(0).toUpperCase()}
+      {filtered.length === 0 ? (
+        <div style={{ background:"white", borderRadius:"14px", padding:"60px", textAlign:"center", border:"1px solid #e2e8f0" }}>
+          <div style={{ fontSize:"40px", marginBottom:"12px" }}>👨‍💻</div>
+          <p style={{ color:"#94a3b8" }}>No freelancers found.</p>
+        </div>
+      ) : (
+        <div style={{ display:"grid", gridTemplateColumns:"repeat(auto-fill, minmax(280px,1fr))", gap:"16px" }}>
+          {filtered.map((f, i) => (
+            <div key={f.id} style={{ background:"white", border:"1px solid #e2e8f0", borderRadius:"16px", padding:"24px", boxShadow:"0 1px 4px rgba(0,0,0,0.04)", transition:"box-shadow 0.2s" }}>
+
+              {/* AVATAR + INFO */}
+              <div style={{ display:"flex", alignItems:"center", gap:"14px", marginBottom:"16px" }}>
+                <div style={{ width:"52px", height:"52px", borderRadius:"50%", background:avatarColors[i%avatarColors.length], display:"flex", alignItems:"center", justifyContent:"center", fontSize:"20px", fontWeight:"800", color:"white", flexShrink:0 }}>
+                  {f.name?.charAt(0)?.toUpperCase()}
+                </div>
+                <div>
+                  <h2 style={{ fontSize:"15px", fontWeight:"700", color:"#0f172a", margin:"0 0 3px" }}>{f.name}</h2>
+                  <p style={{ fontSize:"12px", color:"#64748b", margin:"0 0 5px" }}>{f.email}</p>
+                  <span style={{ background:"#f0fdf9", color:"#0f766e", border:"1px solid #99f6e4", fontSize:"10px", fontWeight:"700", padding:"2px 10px", borderRadius:"20px", textTransform:"uppercase", letterSpacing:"0.5px" }}>
+                    Freelancer
+                  </span>
+                </div>
               </div>
 
-              <div>
-                <h3 className="font-semibold text-lg">
-                  {user.name}
-                </h3>
-
-                <p className="text-gray-500 text-sm">
-                  {user.email}
-                </p>
-              </div>
+              {/* MESSAGE BUTTON ONLY — no Invite */}
+              <button
+                onClick={() => sendMessage(f)}
+                style={{ width:"100%", padding:"10px", borderRadius:"9px", border:"none", background:"linear-gradient(135deg,#0f766e,#0891b2)", color:"white", fontSize:"13px", fontWeight:"700", cursor:"pointer", display:"flex", alignItems:"center", justifyContent:"center", gap:"6px" }}>
+                💬 Message
+              </button>
             </div>
-
-            {/* BUTTON */}
-            <button
-              onClick={() => handleInvite(user)}
-              className="w-full bg-blue-600 text-white py-2 rounded-lg hover:bg-blue-700 transition"
-            >
-              Invite Freelancer
-            </button>
-          </div>
-        ))}
-      </div>
+          ))}
+        </div>
+      )}
     </div>
   );
 };

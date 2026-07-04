@@ -43,7 +43,7 @@ API.interceptors.response.use(
 // AUTH
 export const registerUser = (data) => API.post("/auth/register", data);
 export const loginUser = (data) => API.post("/auth/login", data);
-
+console.log("API initialized with base URL:", BASE_URL);
 // USERS
 export const getAllUsers = () => API.get("/users");
 export const getFreelancers = () => API.get("/users/freelancers");

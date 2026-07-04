@@ -4,16 +4,16 @@ const db = require("../config/db");
 
 // CREATE PROJECT
 
-exports.createProject = (title, description, budget, client_id, callback) => {
+exports.createProject = (title, description, budget, client_id, category, skills, deadline, callback) => {
 
 const sql = `
 INSERT INTO projects
-(title, description, budget, client_id)
-VALUES (?, ?, ?, ?)
+(title, description, budget, client_id, category, skills, deadline)
+VALUES (?, ?, ?, ?, ?, ?, ?)
 `;
 
 db.query(sql,
-[title, description, budget, client_id],
+[title, description, budget, client_id, category, skills || null, deadline || null],
 callback);
 
 };

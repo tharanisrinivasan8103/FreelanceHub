@@ -8,7 +8,7 @@ require("dotenv").config();
 exports.register = async (req, res) => {
   try {
     const { name, email, password, role, phone, gender, dob } = req.body;
-
+    console.log("Register Request:user is registering }");
     // check all fields
     if (!name || !email || !password || !role) {
       return res.status(400).json({

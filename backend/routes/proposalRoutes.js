@@ -1,16 +1,20 @@
 const express = require("express");
 const router = express.Router();
-const proposalController = require("../controllers/proposalController");
-const authMiddleware = require("../middleware/authMiddleware");
+const auth = require("../middleware/authMiddleware");
+const {
+  sendProposal,
+  getProjectProposals,
+  getMyProposals,
+  getFreelancerProposals,
+  updateProposalStatus,
+  deleteProposal,
+} = require("../controllers/proposalController");
 
-router.post("/", authMiddleware, proposalController.sendProposal);
-router.get("/project/:id", authMiddleware, proposalController.getProjectProposals);
-router.get("/freelancer/:id", authMiddleware, proposalController.getFreelancerProposals);
-router.get("/my", authMiddleware, proposalController.getMyProposals);
-
-// ✅ NEW: Accept / Reject
-router.put("/:id/status", authMiddleware, proposalController.updateProposalStatus);
-
-router.delete("/:id", authMiddleware, proposalController.deleteProposal);
+router.post("/",                  auth, sendProposal);
+router.get("/my",                 auth, getMyProposals);
+router.get("/project/:id",        auth, getProjectProposals);
+router.get("/freelancer/:id",     auth, getFreelancerProposals);
+router.put("/:id/status",         auth, updateProposalStatus);
+router.delete("/:id",             auth, deleteProposal);
 
 module.exports = router;
